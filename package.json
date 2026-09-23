@@ -1,0 +1,24 @@
+{
+  "name": "ladybird-whole-school-system",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Ladybird Whole-School Academic Result Management System - Netlify Functions + Neon PostgreSQL backend.",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "db:migrate": "node scripts/db-migrate.js",
+    "migrate:firebase": "node scripts/migrate-firebase-to-neon.js",
+    "verify:migration": "node scripts/verify-migration.js",
+    "dev": "netlify dev"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.1",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "firebase-admin": "^12.1.0",
+    "netlify-cli": "^17.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
