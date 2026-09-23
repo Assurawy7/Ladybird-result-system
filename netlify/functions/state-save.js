@@ -15,7 +15,7 @@
 
 const { withTransaction } = require("./_db");
 const { getAuthedUser } = require("./_auth");
-const { sanitizeStateForClient, hashIncomingPasswords, mergeStale, enforceRbacOnSave } = require("./_state");
+const { sanitizeStateForClient, hashIncomingPasswords, preserveExistingPasswordHashes, mergeStale, enforceRbacOnSave } = require("./_state");
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
@@ -77,6 +77,11 @@ exports.handler = async (event) => {
       const baseRevision = Number(body.baseRevision);
       const wasStale = !isUnseeded && Number.isFinite(baseRevision) && baseRevision < serverRevision;
       const finalState = wasStale ? mergeStale(serverState, payload) : payload;
+
+      // A save that came from a browser which only ever had the sanitized
+      // (hash-stripped) state must never be allowed to erase real password
+      // hashes already in the database - see preserveExistingPasswordHashes().
+      if (!isUnseeded) preserveExistingPasswordHashes(serverState, finalState);
 
       await hashIncomingPasswords(finalState);
 

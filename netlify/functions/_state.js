@@ -46,6 +46,32 @@ async function hashIncomingPasswords(payload) {
   }
 }
 
+/**
+ * CRITICAL: sanitizeStateForClient() strips password/passwordHash before
+ * the state is ever sent to the browser (correct - the browser must never
+ * see a hash). But the frontend still saves the WHOLE state object back on
+ * every change (see persistNow() in source/02-state.js) - including right
+ * after login, when it just fetched a freshly-sanitized copy of itself
+ * (see refreshFullStateAfterLogin()) and then immediately logs an audit
+ * entry and saves. Without this function, that save would silently
+ * overwrite every user's real passwordHash in Neon with nothing, because
+ * the payload never had it to begin with.
+ *
+ * Fix: a passwordHash is "sticky" - once set, only an explicit new
+ * plaintext `password` field (hashed above) can change it. If neither
+ * `password` nor `passwordHash` is present on an existing user, restore
+ * their last-known passwordHash from the database before saving.
+ */
+function preserveExistingPasswordHashes(serverState, payload) {
+  const serverUsers = serverState.users || [];
+  (payload.users || []).forEach((u) => {
+    if (!u.password && !u.passwordHash) {
+      const prev = serverUsers.find((su) => su.id === u.id);
+      if (prev && prev.passwordHash) u.passwordHash = prev.passwordHash;
+    }
+  });
+}
+
 /* ---------------- stale-write merge (ported from source/02-state.js) ---------------- */
 
 const MERGE_BY_ID_COLLECTIONS = [
@@ -279,6 +305,7 @@ function checkUsersChanges(incomingUsers, serverUsers, actingUser, canManageWhol
 module.exports = {
   sanitizeStateForClient,
   hashIncomingPasswords,
+  preserveExistingPasswordHashes,
   mergeStale,
   enforceRbacOnSave,
 };
