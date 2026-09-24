@@ -5,17 +5,17 @@
    Replaces the Firestore runTransaction() in the old persistNow()
    (source/02-state.js). Does the same job, on Neon:
      1. authenticate the caller (unless this is the very first, unseeded save)
-     2. authorize the operation (enforceRbacOnSave — see _state.js)
-     3. lock the row (SELECT ... FOR UPDATE), detect staleness
-     4. if stale, merge by id/key exactly like the old client-side merge did
-     5. hash any plaintext password fields before they ever touch disk
-     6. increment revision, write, return the (possibly merged) state
+     2. reconcile the save against the freshest server state, keeping only
+        the changes this role is actually authorized to make
+        (buildAuthorizedState() — see _state.js)
+     3. hash any plaintext password fields before they ever touch disk
+     4. increment revision, write, return the (possibly merged) state
    ========================================================================== */
 "use strict";
 
 const { withTransaction } = require("./_db");
 const { getAuthedUser } = require("./_auth");
-const { sanitizeStateForClient, hashIncomingPasswords, preserveExistingPasswordHashes, mergeStale, enforceRbacOnSave } = require("./_state");
+const { sanitizeStateForClient, hashIncomingPasswords, preserveExistingPasswordHashes, buildAuthorizedState } = require("./_state");
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
@@ -54,6 +54,8 @@ exports.handler = async (event) => {
       const isUnseeded = !serverState || Object.keys(serverState).length === 0;
 
       let auth = null;
+      let finalState;
+
       if (isUnseeded) {
         if (!payload.users || !payload.users.length || !payload.school) {
           const err = new Error("Initial seed payload looks incomplete.");
@@ -64,6 +66,7 @@ exports.handler = async (event) => {
         // allowed unauthenticated — same trust boundary as the old
         // Firestore code, which seeded on first snapshot with no auth
         // check beyond "signed in anonymously".
+        finalState = payload;
       } else {
         auth = await getAuthedUser(event, serverState);
         if (!auth) {
@@ -71,12 +74,14 @@ exports.handler = async (event) => {
           err.status = 401;
           throw err;
         }
-        enforceRbacOnSave(auth, serverState, payload);
+        const baseRevision = Number(body.baseRevision);
+        const wasStale = Number.isFinite(baseRevision) && baseRevision < serverRevision;
+        // Always reconciles against the freshest server state and keeps
+        // only what this role may actually change — see the big comment
+        // on buildAuthorizedState() in _state.js for why this runs on
+        // every save rather than only when "stale".
+        finalState = buildAuthorizedState(auth, serverState, payload, wasStale);
       }
-
-      const baseRevision = Number(body.baseRevision);
-      const wasStale = !isUnseeded && Number.isFinite(baseRevision) && baseRevision < serverRevision;
-      const finalState = wasStale ? mergeStale(serverState, payload) : payload;
 
       // A save that came from a browser which only ever had the sanitized
       // (hash-stripped) state must never be allowed to erase real password
@@ -92,7 +97,9 @@ exports.handler = async (event) => {
         [JSON.stringify(finalState), nextRevision, updatedBy]
       );
 
-      return { revision: nextRevision, merged: wasStale, state: finalState };
+      const baseRevision = Number(body.baseRevision);
+      const merged = !isUnseeded && Number.isFinite(baseRevision) && baseRevision < serverRevision;
+      return { revision: nextRevision, merged, state: finalState };
     });
 
     return {

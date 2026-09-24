@@ -2,22 +2,25 @@
    _state.js
    - sanitizeStateForClient(): strips secrets before a state row is ever
      sent to the browser.
-   - hashIncomingPasswords(): the compatibility trick that lets the existing
-     frontend keep doing `user.password = pw` unmodified (see
-     source/22-settings-users-backup.js, source/09-teachers.js) while the
-     server transparently converts any plaintext `password` field into a
-     bcrypt `passwordHash` and removes the plaintext before it is ever
-     written to Neon.
-   - MERGE_BY_ID_COLLECTIONS / MERGE_BY_KEY_MAPS / mergeArraysById: ported
-     1:1 from source/02-state.js so a stale save still merges instead of
-     clobbering, exactly like the old Firestore transaction did.
-   - enforceRbacOnSave(): the real backend authorization for state-save.js.
-     Mirrors the intent of source/03-auth.js's client-side checks (a normal
-     Teacher only touches their own subject/class/form-class data), but this
-     copy cannot be bypassed from DevTools. Whole-school roles (SUPER_ADMIN/
-     ADMIN/PRINCIPAL/ACADEMIC_SUPERVISOR) are broad but not unlimited:
-     settings-type collections and publishing are further restricted to
-     match canManageSettings()/canPublish().
+   - hashIncomingPasswords() / preserveExistingPasswordHashes(): the
+     compatibility trick that lets the existing frontend keep doing
+     `user.password = pw` unmodified while the server transparently
+     converts it to a bcrypt hash, and never lets a save that doesn't know
+     about a hash accidentally erase it.
+   - MERGE_BY_ID_COLLECTIONS / MERGE_BY_KEY_MAPS / mergeArraysById /
+     mergeStale: ported from the old client-side merge logic, still used
+     for SUPER_ADMIN/ADMIN saves (see buildAuthorizedState()).
+   - buildAuthorizedState(): the real backend authorization for
+     state-save.js. NOT a throw-or-reject gate — a real live multi-user
+     school means a Form Teacher's copy of the shared document is almost
+     never perfectly current, so comparing their whole save against the
+     live database and rejecting on any mismatch (the first version of
+     this file did that) meant real saves kept silently failing. Instead,
+     this reconciles: it starts from the freshest server state and layers
+     in only the specific, validated changes this role is allowed to make
+     (own subject/class scores, own form class, own account, etc.) —
+     everything else, including other people's concurrent unrelated work,
+     is left exactly as it was in the database.
    ========================================================================== */
 "use strict";
 
@@ -110,7 +113,25 @@ function mergeStale(serverState, payload) {
   return merged;
 }
 
-/* ---------------- RBAC enforcement ---------------- */
+/* ---------------- append-only merge (auditLog, notifications) ---------------- */
+
+/**
+ * auditLog and notifications grow from actions happening all over the
+ * school constantly - "my copy doesn't match the server's right now" is
+ * the NORMAL state for these, not a sign of a conflict. Always reconcile
+ * them by taking the server's entries plus any genuinely new ones from the
+ * payload, for every save, regardless of role - never let one person's
+ * save erase entries that arrived from someone else in the meantime.
+ */
+function mergeAppendOnly(serverArr, payloadArr) {
+  const server = serverArr || [];
+  const incoming = payloadArr || [];
+  const known = new Set(server.map((x) => jstr(x)));
+  const additions = incoming.filter((x) => !known.has(jstr(x)));
+  return server.concat(additions);
+}
+
+/* ---------------- authorization: reconcile, don't reject ---------------- */
 
 const RESTRICTED_SETTINGS_KEYS = [
   "sections", "classArms", "departments", "subjects", "assessmentSchemes",
@@ -118,11 +139,6 @@ const RESTRICTED_SETTINGS_KEYS = [
   "formTeacherAssignments", "commentTemplates", "signatures",
   "affectiveDomains", "psychomotorDomains", "ratingLevels", "customFieldDefs",
   "reportTemplates", "school", "rankingConfig", "isDemoData",
-];
-
-const TEACHER_ALLOWED_TOP_KEYS = [
-  "scores", "classSubjectStatus", "classApproval", "studentComments",
-  "domainScores", "attendance", "students", "users", "auditLog",
 ];
 
 function jstr(v) { return JSON.stringify(v === undefined ? null : v); }
@@ -134,178 +150,206 @@ function studentClassArmId(serverState, incomingState, studentId) {
   return s ? s.classArmId : null;
 }
 
+function deepClone(v) { return JSON.parse(JSON.stringify(v)); }
+
 /**
- * Throws { status, message } if `payload` (the state the client wants to
- * save) contains changes that `user` is not allowed to make, relative to
- * `serverState` (the last-known-good state in Neon). Returns nothing on
- * success (payload is allowed as-is, or will be allowed after mergeStale()).
+ * Overlay changes onto an id-keyed array, but only where `isAllowed`
+ * (given the record in question) says the acting user may touch it.
+ * Anything they're not allowed to touch (an edit, an addition, or a
+ * deletion) is silently kept at the server's current value instead of
+ * failing the whole save - a Form Teacher's legitimate save should never
+ * be blocked by, say, a different teacher's unrelated record having moved
+ * on since this teacher's browser last fetched.
  */
-function enforceRbacOnSave(auth, serverState, payload) {
+function overlayArrayById(serverArr, payloadArr, isAllowed) {
+  serverArr = serverArr || []; payloadArr = payloadArr || [];
+  const payloadMap = {};
+  payloadArr.forEach((r) => { if (r && r.id) payloadMap[r.id] = r; });
+  const result = {};
+  const order = [];
+
+  serverArr.forEach((rec) => {
+    if (!rec || !rec.id) return;
+    order.push(rec.id);
+    const incoming = payloadMap[rec.id];
+    if (incoming === undefined) {
+      // payload wants to delete this record
+      result[rec.id] = isAllowed(rec) ? null : rec;
+      return;
+    }
+    if (jstr(incoming) === jstr(rec)) { result[rec.id] = rec; return; }
+    result[rec.id] = (isAllowed(incoming) || isAllowed(rec)) ? incoming : rec;
+  });
+
+  payloadArr.forEach((rec) => {
+    if (!rec || !rec.id || rec.id in result) return; // new record
+    if (isAllowed(rec)) { result[rec.id] = rec; order.push(rec.id); }
+  });
+
+  return order.map((id) => result[id]).filter((r) => r !== null);
+}
+
+/**
+ * Same idea as overlayArrayById, for the key -> value maps
+ * (classSubjectStatus, classApproval, studentComments, domainScores,
+ * attendance). `isAllowed(key)` decides whether this actor may touch that
+ * key at all; the optional publish-gate params additionally block a
+ * disallowed PUBLISHED/reopen transition even on a key the actor otherwise
+ * owns (e.g. their own form class), keeping just that transition at the
+ * server's current value instead of failing the whole save.
+ */
+function overlayMapByKey(serverMap, payloadMap, isAllowed, publishGate) {
+  serverMap = serverMap || {}; payloadMap = payloadMap || {};
+  const result = Object.assign({}, serverMap);
+  const keys = new Set([...Object.keys(serverMap), ...Object.keys(payloadMap)]);
+  keys.forEach((key) => {
+    const before = serverMap[key];
+    const after = payloadMap[key];
+    if (jstr(before) === jstr(after)) return;
+    if (!isAllowed(key)) return; // not theirs - keep server's value
+    if (publishGate && !publishGate(before, after)) return; // disallowed publish/reopen - keep server's value
+    if (after === undefined) delete result[key];
+    else result[key] = after;
+  });
+  return result;
+}
+
+function publishGateForStatusString(canPublish, canReopen) {
+  return function (before, after) {
+    const beforeStatus = before || "PENDING";
+    if (after === "PUBLISHED" && !canPublish) return false;
+    if (beforeStatus === "PUBLISHED" && after !== "PUBLISHED" && !canReopen) return false;
+    return true;
+  };
+}
+function publishGateForApprovalObject(canPublish, canReopen) {
+  return function (before, after) {
+    const beforeStatus = (before && before.status) || "IN_PROGRESS";
+    const afterStatus = after && after.status;
+    if (afterStatus === "PUBLISHED" && !canPublish) return false;
+    if (beforeStatus === "PUBLISHED" && afterStatus !== "PUBLISHED" && !canReopen) return false;
+    return true;
+  };
+}
+
+/** A user may only ever change their OWN record, and only these fields. */
+function overlayOwnUserRecord(serverUsers, payloadUsers, actingUser) {
+  serverUsers = serverUsers || [];
+  const payloadMap = {};
+  (payloadUsers || []).forEach((u) => { if (u && u.id) payloadMap[u.id] = u; });
+  const allowedFields = ["name", "password", "passwordHash", "photo", "signature"];
+  return serverUsers.map((u) => {
+    if (u.id !== actingUser.id) return u; // everyone else's record: untouched
+    const incoming = payloadMap[u.id];
+    if (!incoming) return u;
+    const merged = Object.assign({}, u);
+    allowedFields.forEach((f) => { if (f in incoming) merged[f] = incoming[f]; });
+    return merged;
+  });
+}
+
+/**
+ * The real backend authorization for state-save.js. Returns the state that
+ * will actually be written - NOT a throw-or-allow gate. Starts from the
+ * freshest server state and layers in only the specific, validated changes
+ * this role is allowed to make; everything else (including other people's
+ * concurrent, unrelated work) is left exactly as it was in the database.
+ * This is what makes it safe to run on every save, every time, regardless
+ * of whether the caller's copy of the shared document happens to be
+ * perfectly current - which, in a real live multi-user school, it almost
+ * never is.
+ */
+function buildAuthorizedState(auth, serverState, payload, wasStale) {
   const { user } = auth;
   const role = user.role;
 
-  const isWholeSchoolRole = role === "SUPER_ADMIN" || role === "ADMIN" || role === "PRINCIPAL" || role === "ACADEMIC_SUPERVISOR";
-  const canManageSettings = role === "SUPER_ADMIN" || role === "ADMIN";
-  const canPublish = role === "SUPER_ADMIN" || role === "ADMIN" || role === "PRINCIPAL";
-  const canReopen = role === "SUPER_ADMIN" || role === "ADMIN";
+  const appendOnly = {
+    auditLog: mergeAppendOnly(serverState.auditLog, payload.auditLog),
+    notifications: mergeAppendOnly(serverState.notifications, payload.notifications),
+  };
+
+  if (role === "SUPER_ADMIN" || role === "ADMIN") {
+    const base = wasStale ? mergeStale(serverState, payload) : payload;
+    return Object.assign({}, base, appendOnly);
+  }
+
+  const canPublish = role === "PRINCIPAL"; // SUPER_ADMIN/ADMIN handled above
+  const canReopen = false; // only SUPER_ADMIN/ADMIN, handled above
 
   const formClassArmIds = (serverState.formTeacherAssignments || [])
     .filter((a) => a.teacherId === user.id && a.active).map((a) => a.classArmId);
   const subjectAssignments = (serverState.teacherAssignments || [])
     .filter((a) => a.teacherId === user.id && a.active);
-
   function isMyFormClassArm(id) { return formClassArmIds.indexOf(id) > -1; }
   function isMySubjectClassPair(subjectId, classArmId) {
     return subjectAssignments.some((a) => a.subjectId === subjectId && a.classArmId === classArmId);
   }
 
-  function deny(message) {
-    const err = new Error(message);
-    err.status = 403;
-    throw err;
+  const finalState = deepClone(serverState);
+  Object.assign(finalState, appendOnly);
+
+  if (role === "PRINCIPAL" || role === "ACADEMIC_SUPERVISOR") {
+    // Whole-school academic access, but settings-type collections and
+    // publish/reopen are still gated - matches canManageSettings()/
+    // canPublish() being false for these roles client-side.
+    Object.keys(payload).forEach((key) => {
+      if (key === "auditLog" || key === "notifications") return; // handled above
+      if (RESTRICTED_SETTINGS_KEYS.indexOf(key) > -1) return; // not theirs - keep server's
+      if (key === "users") { finalState.users = overlayOwnUserRecord(serverState.users, payload.users, user); return; }
+      if (key === "classSubjectStatus") {
+        finalState.classSubjectStatus = overlayMapByKey(
+          serverState.classSubjectStatus, payload.classSubjectStatus,
+          () => true, publishGateForStatusString(canPublish, canReopen)
+        );
+        return;
+      }
+      if (key === "classApproval") {
+        finalState.classApproval = overlayMapByKey(
+          serverState.classApproval, payload.classApproval,
+          () => true, publishGateForApprovalObject(canPublish, canReopen)
+        );
+        return;
+      }
+      if (MERGE_BY_ID_COLLECTIONS.indexOf(key) > -1) { finalState[key] = mergeArraysById(serverState[key], payload[key]); return; }
+      if (MERGE_BY_KEY_MAPS.indexOf(key) > -1) { finalState[key] = Object.assign({}, serverState[key] || {}, payload[key] || {}); return; }
+      finalState[key] = payload[key];
+    });
+    return finalState;
   }
 
-  // 1. SUPER_ADMIN / ADMIN: trusted with everything (matches canManageSettings()).
-  if (role === "SUPER_ADMIN" || role === "ADMIN") return;
-
-  // 2. Everyone else (PRINCIPAL, ACADEMIC_SUPERVISOR, TEACHER): settings-type
-  //    collections are off-limits, matching canManageSettings() being false
-  //    for these roles client-side.
-  for (const key of RESTRICTED_SETTINGS_KEYS) {
-    if (jstr(payload[key]) !== jstr(serverState[key])) {
-      deny(`Your role cannot change "${key}".`);
-    }
-  }
-
-  // 3. Whole-school-but-not-admin roles (PRINCIPAL, ACADEMIC_SUPERVISOR):
-  //    broad academic access, but publish/reopen still gated.
-  if (isWholeSchoolRole) {
-    checkPublishFields(payload.classSubjectStatus, serverState.classSubjectStatus, canPublish, canReopen, deny);
-    checkClassApprovalFields(payload.classApproval, serverState.classApproval, canPublish, canReopen, deny);
-    checkUsersChanges(payload.users, serverState.users, user, /*canManageWholeSchoolUsers*/ false, deny);
-    return; // students/scores/comments/etc. are otherwise open to whole-school roles
-  }
-
-  // 4. TEACHER: narrowest role. Only the keys below may change at all.
-  const changedTopKeys = Object.keys(payload).filter((k) => jstr(payload[k]) !== jstr(serverState[k]));
-  for (const k of changedTopKeys) {
-    if (TEACHER_ALLOWED_TOP_KEYS.indexOf(k) === -1) {
-      deny(`Your role cannot change "${k}".`);
-    }
-  }
-
-  // scores: only own subject/classArm pairs
-  diffArrayById(payload.scores, serverState.scores).forEach((rec) => {
-    if (!isMySubjectClassPair(rec.subjectId, rec.classArmId)) {
-      deny("You can only enter scores for your own assigned subject/class.");
-    }
-  });
-
-  // classSubjectStatus: key = classArmId::subjectId::sessionId::termId
-  diffMapKeys(payload.classSubjectStatus, serverState.classSubjectStatus).forEach((key) => {
-    const [classArmId, subjectId] = key.split("::");
-    const allowed = isMyFormClassArm(classArmId) || isMySubjectClassPair(subjectId, classArmId);
-    if (!allowed) deny("You are not assigned to that subject/class.");
-  });
-  checkPublishFields(payload.classSubjectStatus, serverState.classSubjectStatus, canPublish, canReopen, deny);
-
-  // classApproval: key = classArmId::sessionId::termId — form teacher only
-  diffMapKeys(payload.classApproval, serverState.classApproval).forEach((key) => {
-    const classArmId = key.split("::")[0];
-    if (!isMyFormClassArm(classArmId)) deny("You are not the form teacher for that class.");
-  });
-  checkClassApprovalFields(payload.classApproval, serverState.classApproval, canPublish, canReopen, deny);
-
-  // studentComments / domainScores / attendance: key = studentId::sessionId::termId
+  // TEACHER: narrowest role - only these collections, each validated
+  // record-by-record against real assignments in serverState (never the
+  // client's own possibly-stale claim about its assignments).
+  finalState.scores = overlayArrayById(serverState.scores, payload.scores, (rec) => isMySubjectClassPair(rec.subjectId, rec.classArmId));
+  finalState.classSubjectStatus = overlayMapByKey(
+    serverState.classSubjectStatus, payload.classSubjectStatus,
+    (key) => { const [classArmId, subjectId] = key.split("::"); return isMyFormClassArm(classArmId) || isMySubjectClassPair(subjectId, classArmId); },
+    publishGateForStatusString(canPublish, canReopen)
+  );
+  finalState.classApproval = overlayMapByKey(
+    serverState.classApproval, payload.classApproval,
+    (key) => isMyFormClassArm(key.split("::")[0]),
+    publishGateForApprovalObject(canPublish, canReopen)
+  );
   ["studentComments", "domainScores", "attendance"].forEach((mapKey) => {
-    diffMapKeys(payload[mapKey], serverState[mapKey]).forEach((key) => {
+    finalState[mapKey] = overlayMapByKey(serverState[mapKey], payload[mapKey], (key) => {
       const studentId = key.split("::")[0];
       const classArmId = studentClassArmId(serverState, payload, studentId);
-      if (!classArmId || !isMyFormClassArm(classArmId)) {
-        deny("You are not the form teacher for that student's class.");
-      }
+      return !!classArmId && isMyFormClassArm(classArmId);
     });
   });
+  finalState.students = overlayArrayById(serverState.students, payload.students, (rec) => isMyFormClassArm(rec.classArmId));
+  finalState.users = overlayOwnUserRecord(serverState.users, payload.users, user);
 
-  // students: add/edit/delete only within own form class arm(s)
-  const studentChanges = diffArrayById(payload.students, serverState.students)
-    .concat(diffArrayById(serverState.students, payload.students)); // catches deletions too
-  studentChanges.forEach((rec) => {
-    if (!isMyFormClassArm(rec.classArmId)) {
-      deny("You can only add/edit students in your assigned class.");
-    }
-  });
-
-  // users: may only touch own record, and only profile-ish fields
-  checkUsersChanges(payload.users, serverState.users, user, /*canManageWholeSchoolUsers*/ false, deny);
-
-  // auditLog: append-only (existing entries must not be edited/removed)
-  const serverLog = serverState.auditLog || [];
-  const payloadLog = payload.auditLog || [];
-  if (payloadLog.length < serverLog.length || jstr(payloadLog.slice(0, serverLog.length)) !== jstr(serverLog)) {
-    deny("Audit log entries cannot be modified or removed.");
-  }
+  return finalState;
 }
 
-function diffArrayById(incoming, server) {
-  const serverMap = {};
-  (server || []).forEach((r) => { if (r && r.id) serverMap[r.id] = r; });
-  return (incoming || []).filter((r) => r && r.id && jstr(r) !== jstr(serverMap[r.id]));
-}
-
-function diffMapKeys(incoming, server) {
-  incoming = incoming || {};
-  server = server || {};
-  const keys = new Set([...Object.keys(incoming), ...Object.keys(server)]);
-  return [...keys].filter((k) => jstr(incoming[k]) !== jstr(server[k]));
-}
-
-function checkPublishFields(incomingMap, serverMap, canPublish, canReopen, deny) {
-  diffMapKeys(incomingMap, serverMap).forEach((key) => {
-    const before = (serverMap || {})[key];
-    const after = (incomingMap || {})[key];
-    const beforeStatus = before || "PENDING";
-    const afterStatus = after;
-    if (afterStatus === "PUBLISHED" && !canPublish) deny("Only Admin/Principal/Super Admin can publish results.");
-    if (beforeStatus === "PUBLISHED" && afterStatus !== "PUBLISHED" && !canReopen) deny("Only Admin/Super Admin can reopen published results.");
-  });
-}
-
-function checkClassApprovalFields(incomingMap, serverMap, canPublish, canReopen, deny) {
-  diffMapKeys(incomingMap, serverMap).forEach((key) => {
-    const before = (serverMap || {})[key] || { status: "IN_PROGRESS" };
-    const after = (incomingMap || {})[key] || { status: "IN_PROGRESS" };
-    if (after.status === "PUBLISHED" && !canPublish) deny("Only Admin/Principal/Super Admin can publish results.");
-    if (before.status === "PUBLISHED" && after.status !== "PUBLISHED" && !canReopen) deny("Only Admin/Super Admin can reopen published results.");
-  });
-}
-
-function checkUsersChanges(incomingUsers, serverUsers, actingUser, canManageWholeSchoolUsers, deny) {
-  diffArrayById(incomingUsers, serverUsers).forEach((rec) => {
-    const before = byId(serverUsers, rec.id);
-    const isNew = !before;
-    const isOwnRecord = rec.id === actingUser.id;
-    if (canManageWholeSchoolUsers) return; // ADMIN/SUPER_ADMIN handled earlier and never reach here
-    if (!isOwnRecord) deny("You can only edit your own account.");
-    if (isNew) deny("You cannot create new accounts.");
-    // Own record: only these fields may change.
-    const allowedFields = ["name", "password", "passwordHash", "photo", "signature"];
-    Object.keys(rec).forEach((f) => {
-      if (jstr(rec[f]) !== jstr(before[f]) && allowedFields.indexOf(f) === -1) {
-        deny(`You cannot change your own "${f}".`);
-      }
-    });
-  });
-  // deletions of user records
-  diffArrayById(serverUsers, incomingUsers).forEach(() => {
-    deny("You cannot delete accounts.");
-  });
-}
 
 module.exports = {
   sanitizeStateForClient,
   hashIncomingPasswords,
   preserveExistingPasswordHashes,
   mergeStale,
-  enforceRbacOnSave,
+  mergeAppendOnly,
+  buildAuthorizedState,
 };
