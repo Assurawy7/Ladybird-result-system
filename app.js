@@ -529,7 +529,7 @@ function startLiveSync(){
     if (document.visibilityState === "hidden") return;
     if (navigator.onLine === false) return;
     pollOnce();
-  }, 2000);
+  }, 5000); // was 2000ms - eased off to reduce Neon data-transfer volume; still feels live for a result-management app
 }
 function stopLiveSync(){
   if (_liveSyncTimer){ clearInterval(_liveSyncTimer); _liveSyncTimer = null; }
@@ -782,13 +782,19 @@ function tryLogin(username, password){
 
 function logout(){
   addAudit(state, "Logout", state.currentUser ? state.currentUser.username : "");
-  scheduleSave();
   stopLiveSync();
-  apiLogout().catch(function(){ /* clear local state regardless */ });
-  state.currentUser = null;
-  state.view = "login";
-  clearLocalSession();
-  renderApp();
+  // Persist the "Logout" audit entry WHILE the session cookie is still
+  // valid, then only clear local session state once that's done (or
+  // failed) - scheduling it for later via scheduleSave() would race
+  // apiLogout() clearing the cookie and fail with a spurious "session
+  // expired" toast on an already-intentional logout.
+  persistNow().catch(function(){ /* best-effort - logout proceeds regardless */ }).then(function(){
+    apiLogout().catch(function(){ /* clear local state regardless */ });
+    state.currentUser = null;
+    state.view = "login";
+    clearLocalSession();
+    renderApp();
+  });
 }
 
 /* form-teacher class-arms this user is actively assigned to */

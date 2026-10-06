@@ -1,16 +1,16 @@
 /* ==========================================================================
    GET /.netlify/functions/media-get?key=student_xxxx
-   Replaces window.firebaseDb.collection("media").doc(key) reads. The old
-   app actually listened to the WHOLE media collection live (see
-   startFirestoreSync() -> collection("media").onSnapshot()); the
-   compatibility layer instead fetches media lazily/on-demand per key from
-   the browser (see apiGetMedia() in the new source/02-state.js) since Neon
-   has no equivalent always-on collection listener for a static frontend.
+   MIGRATION NOTE: now reads from Cloudflare R2 instead of the Neon `media`
+   table - see _r2.js. Still fetched lazily/on-demand per key from the
+   browser (see apiGetMedia() in source/02-state.js) - unchanged behavior,
+   only the storage backend moved, and R2 reads never count toward Neon's
+   transfer limit at all.
    ========================================================================== */
 "use strict";
 
 const { query } = require("./_db");
 const { getAuthedUser } = require("./_auth");
+const { getMedia } = require("./_r2");
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "GET") {
@@ -34,11 +34,11 @@ exports.handler = async (event) => {
   }
 
   try {
-    const res = await query("SELECT data_url, updated_at FROM media WHERE key = $1", [key]);
-    if (!res.rows.length) return { statusCode: 200, body: JSON.stringify({ ok: true, found: false }) };
-    return { statusCode: 200, body: JSON.stringify({ ok: true, found: true, dataUrl: res.rows[0].data_url }) };
+    const result = await getMedia(key);
+    if (!result.found) return { statusCode: 200, body: JSON.stringify({ ok: true, found: false }) };
+    return { statusCode: 200, body: JSON.stringify({ ok: true, found: true, dataUrl: result.dataUrl }) };
   } catch (err) {
-    console.error("media-get DB error", err);
+    console.error("media-get R2 error", err);
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: "Could not reach the database." }) };
   }
 };

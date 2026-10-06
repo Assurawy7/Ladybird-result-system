@@ -280,7 +280,7 @@ function startLiveSync(){
     if (document.visibilityState === "hidden") return;
     if (navigator.onLine === false) return;
     pollOnce();
-  }, 2000);
+  }, 5000); // was 2000ms - eased off to reduce Neon data-transfer volume; still feels live for a result-management app
 }
 function stopLiveSync(){
   if (_liveSyncTimer){ clearInterval(_liveSyncTimer); _liveSyncTimer = null; }

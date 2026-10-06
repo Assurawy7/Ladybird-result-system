@@ -2,6 +2,7 @@
 
 const { query } = require("./_db");
 const { getAuthedUser } = require("./_auth");
+const { deleteMedia } = require("./_r2");
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
@@ -26,10 +27,10 @@ exports.handler = async (event) => {
   if (!auth) return { statusCode: 401, body: JSON.stringify({ ok: false, error: "Not signed in." }) };
 
   try {
-    await query("DELETE FROM media WHERE key = $1", [key]);
+    await deleteMedia(key);
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   } catch (err) {
-    console.error("media-delete DB error", err);
+    console.error("media-delete R2 error", err);
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: "Could not delete media." }) };
   }
 };
