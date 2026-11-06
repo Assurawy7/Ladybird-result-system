@@ -59,7 +59,24 @@ exports.handler = async (event) => {
 
     if (!isUnseeded) {
       const auth = await getAuthedUser(event, state);
-      if (!auth) return json(401, { ok: false, error: "Not signed in." });
+      if (!auth) {
+        // First load of the page while signed out (since = -1): the login
+        // screen needs the school's name and motto, so send ONLY those two
+        // public fields. Nothing else leaves the database for a signed-out
+        // visitor. A later poll (since >= 0) with no valid session still
+        // gets 401 so the app knows the session ended.
+        if (since === -1) {
+          const sch = state.school || {};
+          return json(200, {
+            ok: true,
+            changed: true,
+            authenticated: false,
+            revision: Number(row.revision),
+            state: { school: { name: sch.name || "", motto: sch.motto || "" } },
+          });
+        }
+        return json(401, { ok: false, error: "Not signed in." });
+      }
     }
 
     if (since === Number(row.revision)) {
