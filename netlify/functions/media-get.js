@@ -9,7 +9,7 @@
 "use strict";
 
 const { query } = require("./_db");
-const { getAuthedUser } = require("./_auth");
+const { getAuthedUserLight } = require("./_auth");
 const { getMedia } = require("./_r2");
 
 exports.handler = async (event) => {
@@ -19,18 +19,19 @@ exports.handler = async (event) => {
   const key = (event.queryStringParameters || {}).key;
   if (!key) return { statusCode: 400, body: JSON.stringify({ ok: false, error: "key is required." }) };
 
-  let stateRow;
+  // Same rule as before (signed in, or the school is not set up yet), but
+  // checked with tiny queries instead of reading the whole school database
+  // out of Neon for every single photo.
   try {
-    stateRow = (await query("SELECT state FROM school_state WHERE id = 1")).rows[0];
+    const auth = await getAuthedUserLight(event);
+    if (!auth) {
+      const e = await query("SELECT (state = '{}'::jsonb) AS empty FROM school_state WHERE id = 1");
+      const isUnseeded = !!(e.rows[0] && e.rows[0].empty);
+      if (!isUnseeded) return { statusCode: 401, body: JSON.stringify({ ok: false, error: "Not signed in." }) };
+    }
   } catch (err) {
     console.error("media-get DB error", err);
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: "Could not reach the database." }) };
-  }
-  const state = (stateRow && stateRow.state) || {};
-  const isUnseeded = !state || Object.keys(state).length === 0;
-  if (!isUnseeded) {
-    const auth = await getAuthedUser(event, state);
-    if (!auth) return { statusCode: 401, body: JSON.stringify({ ok: false, error: "Not signed in." }) };
   }
 
   try {

@@ -27,7 +27,7 @@
    ========================================================================== */
 "use strict";
 
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } = require("@aws-sdk/client-s3");
 
 let client = null;
 
@@ -95,4 +95,16 @@ async function deleteMedia(key) {
   await getClient().send(new DeleteObjectCommand({ Bucket: bucketName(), Key: key }));
 }
 
-module.exports = { putMedia, getMedia, deleteMedia };
+/** Lists every stored key (used by scripts/repair-media-links.js). */
+async function listKeys() {
+  const keys = [];
+  let token;
+  do {
+    const res = await getClient().send(new ListObjectsV2Command({ Bucket: bucketName(), ContinuationToken: token }));
+    (res.Contents || []).forEach((o) => keys.push(o.Key));
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (token);
+  return keys;
+}
+
+module.exports = { putMedia, getMedia, deleteMedia, listKeys };

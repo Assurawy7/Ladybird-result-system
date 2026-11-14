@@ -57,6 +57,16 @@ exports.handler = async (event) => {
       let finalState;
 
       if (isUnseeded) {
+        // PHASE 0: first-time setup is locked unless you deliberately open it.
+        // Without this, anyone who reached a brand-new (empty) deployment
+        // before you did could create the school and its administrators.
+        // To set up a new school: set ALLOW_SEED=true in Netlify, redeploy,
+        // open the site once, then delete ALLOW_SEED again.
+        if (process.env.ALLOW_SEED !== "true") {
+          const err = new Error("First-time setup is locked. In Netlify set the environment variable ALLOW_SEED to true, redeploy, open the site once to create the school, then delete ALLOW_SEED.");
+          err.status = 403;
+          throw err;
+        }
         if (!payload.users || !payload.users.length || !payload.school) {
           const err = new Error("Initial seed payload looks incomplete.");
           err.status = 400;

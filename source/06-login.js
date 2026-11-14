@@ -13,6 +13,9 @@ var DEMO_ACCOUNTS_DISPLAY = [
 ];
 
 function renderLoginView(){
+  // The demo-account helper (and its password hint) is shown ONLY while the
+  // school still has active demo accounts; the server tells us (publicInfo).
+  var showDemo = !!(state.publicInfo && state.publicInfo.demo);
   var demoRows = DEMO_ACCOUNTS_DISPLAY.map(function(a){
     return '<button class="demo-account" data-action="fill-demo" data-username="'+a.u+'">'+
       '<strong>'+a.u+'</strong><span>'+a.label+'</span></button>';
@@ -37,8 +40,8 @@ function renderLoginView(){
         '<div id="login-error" class="login-error" style="display:none"></div>'+
         '<button type="submit" class="btn btn-primary btn-block" id="login-submit">Sign In</button>'+
       '</form>'+
-      '<div class="login-demo-note">Tap an account to autofill (password: <code>demo123</code>)</div>'+
-      '<div class="demo-accounts">'+demoRows+'</div>'+
+      (showDemo ? '<div class="login-demo-note">Tap an account to autofill (password: <code>demo123</code>)</div>'+
+      '<div class="demo-accounts">'+demoRows+'</div>' : '')+
       '<button class="btn btn-secondary btn-block install-app-btn" style="display:'+(installPromptAvailable?'':'none')+';margin-top:14px" onclick="triggerInstall()">'+ICONS("plus")+' Install App</button>'+
     '</div>'+
     '<div class="login-footer">Live shared database — changes sync across every device in real time.</div>'+

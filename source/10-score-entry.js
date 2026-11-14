@@ -147,7 +147,9 @@ function handleScoreInput(input, subjectId, classArmId){
   if (indicator) indicator.textContent = "Saving…";
   refreshScoreRow(studentId, subjectId, classArmId);
   scheduleSave();
-  setTimeout(function(){ var ind = el("save-indicator"); if (ind) ind.textContent = "All changes saved"; }, 300);
+  // The indicator now stays on "Saving…" until the server confirms the save
+  // (see setSaveIndicator() in 02-state.js). It used to claim "All changes
+  // saved" 0.3 seconds after typing, whatever actually happened.
 }
 
 function handleAttendanceState(select, subjectId, classArmId){

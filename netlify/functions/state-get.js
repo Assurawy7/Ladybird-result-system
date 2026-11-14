@@ -41,8 +41,8 @@ exports.handler = async (event) => {
       if (userId) {
         // Fetch only THIS user's record out of the JSONB, not the whole state.
         const u = await query(
-          "SELECT 1 FROM school_state, jsonb_array_elements(COALESCE(state->'users', '[]'::jsonb)) AS usr " +
-          "WHERE id = 1 AND usr->>'id' = $1 AND (usr->>'active')::boolean IS TRUE LIMIT 1",
+          "SELECT 1 FROM school_state, jsonb_array_elements(COALESCE(school_state.state->'users', '[]'::jsonb)) AS u(usr) " +
+          "WHERE school_state.id = 1 AND u.usr->>'id' = $1 AND (u.usr->>'active')::boolean IS TRUE LIMIT 1",
           [userId]
         );
         if (u.rows.length) return json(200, { ok: true, changed: false, revision });
@@ -72,7 +72,12 @@ exports.handler = async (event) => {
             changed: true,
             authenticated: false,
             revision: Number(row.revision),
-            state: { school: { name: sch.name || "", motto: sch.motto || "" } },
+            state: {
+              school: { name: sch.name || "", motto: sch.motto || "" },
+              // Lets the login screen show the demo-account helper ONLY while
+              // active demo accounts still exist in this school.
+              publicInfo: { demo: (state.users || []).some((u) => u && u.active && u.isDemo) },
+            },
           });
         }
         return json(401, { ok: false, error: "Not signed in." });

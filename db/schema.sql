@@ -52,3 +52,13 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id);
 INSERT INTO school_state (id, state, revision)
 VALUES (1, '{}'::jsonb, 0)
 ON CONFLICT (id) DO NOTHING;
+
+-- PHASE 0: counts wrong-password attempts so password guessing can be slowed
+-- down (see netlify/functions/_throttle.js). The login function also creates
+-- this table on first use if it is missing, so running db:migrate is optional.
+CREATE TABLE IF NOT EXISTS login_attempts (
+  key        TEXT PRIMARY KEY,
+  fails      INTEGER NOT NULL DEFAULT 0,
+  first_fail TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_fail  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

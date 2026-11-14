@@ -30,10 +30,15 @@ function getGradingScheme(subject, classArm){
 }
 
 function gradeFor(total, gradingScheme){
-  if (!gradingScheme) return { grade:"-", remark:"", point:null };
-  for (var i=0;i<gradingScheme.bands.length;i++){
-    var b = gradingScheme.bands[i];
-    if (total >= b.min && total <= b.max) return b;
+  // Bands are whole-number ranges (e.g. 70-74, 75-100) but totals can be
+  // fractional (e.g. 74.5). The old exact-range test left those totals in
+  // the "gap" between two bands and gave them no grade at all. Taking the
+  // highest band whose minimum the total reaches closes every gap and gives
+  // exactly the same answer for whole-number totals.
+  if (!gradingScheme || !gradingScheme.bands || typeof total !== "number" || isNaN(total)) return { grade:"-", remark:"", point:null };
+  var sorted = gradingScheme.bands.slice().sort(function(a,b){ return b.min - a.min; });
+  for (var i=0;i<sorted.length;i++){
+    if (total >= sorted[i].min) return sorted[i];
   }
   return { grade:"-", remark:"", point:null };
 }

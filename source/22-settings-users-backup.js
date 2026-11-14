@@ -59,6 +59,7 @@ function deleteWholeSchoolUser(userId){
 function renderBackupSettings(){
   var demoStudentCount = state.students.filter(function(s){return s.isDemo;}).length;
   var demoUserCount = state.users.filter(function(u){return u.isDemo && u.id!==state.currentUser.id;}).length;
+  var hasRealStudents = state.students.some(function(s){return !s.isDemo;});
   return '<div class="card"><div class="card-header"><h3>Backup &amp; Restore</h3></div>'+
     '<p class="muted">All school data lives in your live school database, shared across every device. Export a backup regularly and keep a copy somewhere safe, in case anything ever goes wrong with the database itself.</p>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">'+
@@ -71,7 +72,7 @@ function renderBackupSettings(){
     '<p class="muted">This installation currently '+(demoStudentCount||demoUserCount ? 'still contains '+demoStudentCount+' demo student(s) and '+demoUserCount+' demo account(s).' : 'no longer contains demo data.')+'</p>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">'+
       (demoStudentCount||demoUserCount ? '<button class="btn btn-secondary" onclick="deleteDemoData()">Remove Demo Accounts &amp; Students</button>' : '')+
-      '<button class="btn btn-secondary" onclick="resetToDemo()">Reload Demo Data</button>'+
+      (hasRealStudents ? '' : '<button class="btn btn-secondary" onclick="resetToDemo()">Reload Demo Data</button>')+
       '<button class="btn btn-ghost" style="color:#8E2A3B" onclick="wipeAllData()">Wipe All Data</button>'+
     '</div>'+
   '</div>';

@@ -43,6 +43,9 @@ async function createSession(userId, userAgent) {
     "INSERT INTO sessions (token_hash, user_id, expires_at, user_agent) VALUES ($1, $2, $3, $4)",
     [tokenHash, userId, expiresAt, userAgent || null]
   );
+  // Housekeeping: expired sessions were previously only removed when someone
+  // happened to use them. Failure here must never block a login.
+  try { await query("DELETE FROM sessions WHERE expires_at < NOW()"); } catch (e) { console.error("session purge failed", e); }
   return { token, expiresAt };
 }
 
@@ -143,6 +146,43 @@ function isFormTeacherOf(state, user, classArmId) {
   return myFormClassArmIds(state, user.id).indexOf(classArmId) > -1;
 }
 
+
+/* --------------------------------------------------------------------------
+   getAuthedUserLight(event)
+   Same answer as getAuthedUser(), but WITHOUT reading the whole school
+   database out of Neon. One query joins the session row to just this one
+   user's record inside the JSON, so only that single user crosses the
+   network (previously every photo, login and page-load pulled the entire
+   school state, which is what exhausted the Neon transfer allowance).
+   Who is allowed in is unchanged: a valid, unexpired session whose user is
+   still active. Returns { userId, user } (never includes password fields)
+   or null.
+   -------------------------------------------------------------------------- */
+async function getAuthedUserLight(event) {
+  const token = parseCookies(event.headers || {})[SESSION_COOKIE];
+  if (!token) return null;
+  const res = await query(
+    "SELECT s.user_id, u.usr FROM sessions s " +
+    "JOIN school_state ss ON ss.id = 1 " +
+    "JOIN LATERAL jsonb_array_elements(COALESCE(ss.state->'users', '[]'::jsonb)) AS u(usr) ON u.usr->>'id' = s.user_id " +
+    "WHERE s.token_hash = $1 AND s.expires_at > NOW() AND (u.usr->>'active')::boolean IS TRUE LIMIT 1",
+    [hashToken(token)]
+  );
+  if (!res.rows.length) return null;
+  const user = res.rows[0].usr;
+  delete user.passwordHash; delete user.password;
+  return { userId: user.id, user };
+}
+
+function getClientIp(event) {
+  const h = (event && event.headers) || {};
+  const direct = h["x-nf-client-connection-ip"] || h["client-ip"];
+  if (direct) return String(direct).trim();
+  const fwd = h["x-forwarded-for"];
+  if (fwd) return String(fwd).split(",")[0].trim();
+  return "unknown";
+}
+
 module.exports = {
   SESSION_COOKIE,
   hashPassword,
@@ -154,6 +194,8 @@ module.exports = {
   sessionCookieHeader,
   clearSessionCookieHeader,
   getAuthedUser,
+  getAuthedUserLight,
+  getClientIp,
   isWholeSchoolRole,
   canManageSettings,
   canPublish,

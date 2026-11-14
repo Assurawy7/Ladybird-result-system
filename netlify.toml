@@ -1,16 +1,34 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+  # Regenerates app.js and service-worker.js from source/ on every deploy,
+  # so what is served can never drift from the source files.
+  command = "node scripts/build.js"
 
 [functions]
   node_bundler = "esbuild"
 
-# Static asset caching - HTML/functions are excluded so logins, live-sync
-# polling, and page updates are never served stale from a CDN edge cache.
+# Scripts are re-checked on every load (a cheap 304 when unchanged). The old
+# one-hour cache could serve a stale app.js or service-worker.js for up to
+# an hour after a deploy, and let a new service worker cache the old app.
 [[headers]]
   for = "/*.js"
   [headers.values]
-    Cache-Control = "public, max-age=3600"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Security headers for every response.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000"
+    # Report-only for now: the browser console shows anything it WOULD block,
+    # but nothing is blocked. Once you have used every screen with no
+    # warnings, rename this header to Content-Security-Policy to enforce it.
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 
 [[headers]]
   for = "/.netlify/functions/*"

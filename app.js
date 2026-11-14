@@ -276,6 +276,9 @@ function addAudit(state, action, details){
 var state = null;
 var saveTimer = null;
 var _mediaCache = {};
+var _mediaUnloaded = {};   // photos the school HAS but this device has not managed to load yet
+var _mediaLoading = false;
+var _mediaLastTry = 0;
 var _lastKnownRev = -1;
 var _firstSnapshotReceived = false;
 var MEDIA_MARKER = "@media";
@@ -344,26 +347,65 @@ function collectMediaFields(s){
   return fields;
 }
 
+/* PHOTO SAFETY (this block fixes a data-loss bug):
+   The shared school data only holds a small "@media" marker for each photo;
+   the picture itself is fetched separately. Before, if a photo failed to
+   download on ONE device (slow network, server busy), that device treated it
+   as "no photo" and its next save wrote an empty photo into the shared data
+   for EVERYONE - every other device then showed no picture, and could even
+   delete the stored image. Now:
+   - a photo that exists but has not loaded yet is remembered in
+     _mediaUnloaded and its marker is ALWAYS kept when saving;
+   - a photo only gets deleted from storage when someone on THIS device
+     actually removes it, never because another device's data had none. */
 function rehydrateMediaFields(target){
   collectMediaFields(target).forEach(function(f){
-    if (f.get() === MEDIA_MARKER) f.set(_mediaCache[f.key] || "");
+    var v = f.get();
+    if (v === MEDIA_MARKER){
+      if (_mediaCache[f.key]){ f.set(_mediaCache[f.key]); delete _mediaUnloaded[f.key]; }
+      else { f.set(""); _mediaUnloaded[f.key] = true; }
+    } else if (!v){
+      // The shared data says there is no photo (another device removed it).
+      // Forget our local copy quietly - never delete storage because of it.
+      delete _mediaCache[f.key];
+      delete _mediaUnloaded[f.key];
+    }
   });
+  // Photos load in the background, a few at a time, so the app opens at once
+  // and a slow or busy server can no longer make loading fail wholesale.
+  setTimeout(loadMediaInBackground, 50);
 }
 
-/* Fetches (in parallel) any media referenced by @media markers in `target`
-   that isn't already in _mediaCache. Old Firestore code kept _mediaCache
-   fully in sync via a live collection listener; the static-hosting
-   equivalent here is to fetch on demand right before we need it. */
-function prefetchMedia(target){
-  var toFetch = collectMediaFields(target).filter(function(f){
-    return f.get() === MEDIA_MARKER && !(f.key in _mediaCache);
+/* Kept for the existing callers: photos no longer block the app from
+   opening (see loadMediaInBackground). */
+function prefetchMedia(target){ return Promise.resolve(); }
+
+function loadMediaInBackground(){
+  if (_mediaLoading || !state || !state.currentUser) return;
+  var todo = collectMediaFields(state).filter(function(f){ return _mediaUnloaded[f.key] && !(f.key in _mediaCache); });
+  if (!todo.length) return;
+  _mediaLoading = true; _mediaLastTry = Date.now();
+  var next = 0, loaded = 0, WORKERS = 6;
+  function worker(){
+    if (next >= todo.length) return Promise.resolve();
+    var key = todo[next++].key;
+    return apiGetMedia(key).then(function(res){
+      if (res && res.ok && res.found){
+        _mediaCache[key] = res.dataUrl; delete _mediaUnloaded[key]; loaded++;
+        collectMediaFields(state).forEach(function(f){ if (f.key === key && !f.get()) f.set(res.dataUrl); });
+        if (loaded % 25 === 0 && !userIsBusy()) renderApp();
+      } else if (res && res.ok && res.found === false){
+        delete _mediaUnloaded[key];   // storage really has no such picture - stop waiting for it
+      }
+      // any other failure: keep it marked as "not loaded yet" and retry later
+    }).catch(function(){}).then(worker);
+  }
+  var pool = [];
+  for (var w = 0; w < Math.min(WORKERS, todo.length); w++) pool.push(worker());
+  Promise.all(pool).then(function(){
+    _mediaLoading = false;
+    if (loaded && state && state.currentUser && !userIsBusy()) renderApp();
   });
-  if (!toFetch.length) return Promise.resolve();
-  return Promise.all(toFetch.map(function(f){
-    return apiGetMedia(f.key).then(function(res){
-      if (res.ok && res.found) _mediaCache[f.key] = res.dataUrl;
-    }).catch(function(){ /* ignore - field just stays blank */ });
-  }));
 }
 
 /* Uploads/deletes any changed media based on the LIVE (unclonded) state,
@@ -375,6 +417,7 @@ function syncMediaFromState(liveState){
     var cached = _mediaCache[f.key];
     if (current && current.indexOf("data:") === 0 && current !== cached){
       _mediaCache[f.key] = current;
+      delete _mediaUnloaded[f.key];
       apiSaveMedia(f.key, current).then(function(res){
         if (!res.ok) console.error("Media upload failed for "+f.key, res.error);
       });
@@ -389,7 +432,7 @@ function syncMediaFromState(liveState){
 
 function applyMediaMarkers(payload){
   collectMediaFields(payload).forEach(function(f){
-    f.set(_mediaCache[f.key] ? MEDIA_MARKER : "");
+    f.set((_mediaCache[f.key] || _mediaUnloaded[f.key]) ? MEDIA_MARKER : "");
   });
 }
 
@@ -586,6 +629,7 @@ function pollOnce(){
   if (hasUnsavedLocalWork()) return;
   if (Date.now() - _lastPollAt < 2500) return;
   _lastPollAt = Date.now();
+  if (!_mediaLoading && Date.now() - _mediaLastTry > 60000 && Object.keys(_mediaUnloaded).length) loadMediaInBackground();
   _pollInFlight = true; _pollStartedAt = Date.now();
   apiGetState(_lastKnownRev).then(function(res){
     if (!res.ok){
@@ -633,6 +677,11 @@ function scheduleRetry(){
   }, 8000);
 }
 
+function setSaveIndicator(text){
+  var ind = document.getElementById("save-indicator");
+  if (ind) ind.textContent = text;
+}
+
 function persistNow(){
   if (!state) return Promise.resolve();
   if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
@@ -653,12 +702,14 @@ function persistNow(){
       if (result._httpStatus === 401){ sessionExpired(); return; }
       if (result._httpStatus === 403){
         toast(result.error || "You don't have permission to save that change.", "error");
+        setSaveIndicator("Not saved - no permission");
         return;
       }
       if (Date.now() - _lastSaveFailToastAt > 30000){
         _lastSaveFailToastAt = Date.now();
         toast("Could not save to the school server - will keep retrying. Please keep this page open.", "error");
       }
+      setSaveIndicator("Not saved yet - retrying…");
       _pendingSave = true;
       scheduleRetry();
       return;
@@ -688,8 +739,11 @@ function persistNow(){
       renderApp();
     }
     cacheStateLocally();
-    if (_pendingSave){ _pendingSave = false; persistNow(); }
-    else { setTimeout(pollOnce, 400); }
+    if (_pendingSave){ _pendingSave = false; setSaveIndicator("Saving…"); persistNow(); }
+    else {
+      if (!saveTimer) setSaveIndicator("All changes saved");
+      setTimeout(pollOnce, 400);
+    }
   }).catch(function(err){
     _saveInFlight = false;
     console.error("Save failed", err);
@@ -697,6 +751,7 @@ function persistNow(){
       _lastSaveFailToastAt = Date.now();
       toast("Could not save to the school server - will keep retrying. Please keep this page open.", "error");
     }
+    setSaveIndicator("Not saved yet - retrying…");
     _pendingSave = true;
     scheduleRetry();
   });
@@ -721,7 +776,12 @@ document.addEventListener("focusout", function(){
 }, true);
 
 function resetToDemo(){
+  if (state.students.some(function(s){ return !s.isDemo; })){
+    alert("This school has real student records, so Reload Demo Data is disabled to protect them. Use Export Backup first if you really need to start over, then Wipe All Data.");
+    return;
+  }
   if (!window.confirm("This will erase everything for the WHOLE SCHOOL (all devices) and reload the built-in demo data. Continue?")) return;
+  if (window.prompt("Type RELOAD to confirm:") !== "RELOAD"){ alert("Cancelled - no changes made."); return; }
   var keepUser = state.currentUser;
   state = seedState();
   state.currentUser = keepUser;
@@ -984,10 +1044,15 @@ function getGradingScheme(subject, classArm){
 }
 
 function gradeFor(total, gradingScheme){
-  if (!gradingScheme) return { grade:"-", remark:"", point:null };
-  for (var i=0;i<gradingScheme.bands.length;i++){
-    var b = gradingScheme.bands[i];
-    if (total >= b.min && total <= b.max) return b;
+  // Bands are whole-number ranges (e.g. 70-74, 75-100) but totals can be
+  // fractional (e.g. 74.5). The old exact-range test left those totals in
+  // the "gap" between two bands and gave them no grade at all. Taking the
+  // highest band whose minimum the total reaches closes every gap and gives
+  // exactly the same answer for whole-number totals.
+  if (!gradingScheme || !gradingScheme.bands || typeof total !== "number" || isNaN(total)) return { grade:"-", remark:"", point:null };
+  var sorted = gradingScheme.bands.slice().sort(function(a,b){ return b.min - a.min; });
+  for (var i=0;i<sorted.length;i++){
+    if (total >= sorted[i].min) return sorted[i];
   }
   return { grade:"-", remark:"", point:null };
 }
@@ -1452,6 +1517,9 @@ var DEMO_ACCOUNTS_DISPLAY = [
 ];
 
 function renderLoginView(){
+  // The demo-account helper (and its password hint) is shown ONLY while the
+  // school still has active demo accounts; the server tells us (publicInfo).
+  var showDemo = !!(state.publicInfo && state.publicInfo.demo);
   var demoRows = DEMO_ACCOUNTS_DISPLAY.map(function(a){
     return '<button class="demo-account" data-action="fill-demo" data-username="'+a.u+'">'+
       '<strong>'+a.u+'</strong><span>'+a.label+'</span></button>';
@@ -1476,8 +1544,8 @@ function renderLoginView(){
         '<div id="login-error" class="login-error" style="display:none"></div>'+
         '<button type="submit" class="btn btn-primary btn-block" id="login-submit">Sign In</button>'+
       '</form>'+
-      '<div class="login-demo-note">Tap an account to autofill (password: <code>demo123</code>)</div>'+
-      '<div class="demo-accounts">'+demoRows+'</div>'+
+      (showDemo ? '<div class="login-demo-note">Tap an account to autofill (password: <code>demo123</code>)</div>'+
+      '<div class="demo-accounts">'+demoRows+'</div>' : '')+
       '<button class="btn btn-secondary btn-block install-app-btn" style="display:'+(installPromptAvailable?'':'none')+';margin-top:14px" onclick="triggerInstall()">'+ICONS("plus")+' Install App</button>'+
     '</div>'+
     '<div class="login-footer">Live shared database — changes sync across every device in real time.</div>'+
@@ -2459,7 +2527,9 @@ function handleScoreInput(input, subjectId, classArmId){
   if (indicator) indicator.textContent = "Saving…";
   refreshScoreRow(studentId, subjectId, classArmId);
   scheduleSave();
-  setTimeout(function(){ var ind = el("save-indicator"); if (ind) ind.textContent = "All changes saved"; }, 300);
+  // The indicator now stays on "Saving…" until the server confirms the save
+  // (see setSaveIndicator() in 02-state.js). It used to claim "All changes
+  // saved" 0.3 seconds after typing, whatever actually happened.
 }
 
 function handleAttendanceState(select, subjectId, classArmId){
@@ -3887,6 +3957,7 @@ function deleteWholeSchoolUser(userId){
 function renderBackupSettings(){
   var demoStudentCount = state.students.filter(function(s){return s.isDemo;}).length;
   var demoUserCount = state.users.filter(function(u){return u.isDemo && u.id!==state.currentUser.id;}).length;
+  var hasRealStudents = state.students.some(function(s){return !s.isDemo;});
   return '<div class="card"><div class="card-header"><h3>Backup &amp; Restore</h3></div>'+
     '<p class="muted">All school data lives in your live school database, shared across every device. Export a backup regularly and keep a copy somewhere safe, in case anything ever goes wrong with the database itself.</p>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">'+
@@ -3899,7 +3970,7 @@ function renderBackupSettings(){
     '<p class="muted">This installation currently '+(demoStudentCount||demoUserCount ? 'still contains '+demoStudentCount+' demo student(s) and '+demoUserCount+' demo account(s).' : 'no longer contains demo data.')+'</p>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">'+
       (demoStudentCount||demoUserCount ? '<button class="btn btn-secondary" onclick="deleteDemoData()">Remove Demo Accounts &amp; Students</button>' : '')+
-      '<button class="btn btn-secondary" onclick="resetToDemo()">Reload Demo Data</button>'+
+      (hasRealStudents ? '' : '<button class="btn btn-secondary" onclick="resetToDemo()">Reload Demo Data</button>')+
       '<button class="btn btn-ghost" style="color:#8E2A3B" onclick="wipeAllData()">Wipe All Data</button>'+
     '</div>'+
   '</div>';

@@ -1,7 +1,7 @@
 /* ==========================================================================
    service-worker.template.js
    This is the file to EDIT. `npm run build` generates the real
-   `service-worker.js` from this template, substituting 4b383a296b
+   `service-worker.js` from this template, substituting 83157ec79f
    with a hash computed automatically from app.js/styles.css/index.html/
    manifest.json - so the cache name always changes whenever any of those
    files change, and installed clients always pick up the update. You no
@@ -13,7 +13,7 @@
    Basic app-shell cache so the system keeps working offline once opened
    once.
    ========================================================================== */
-var CACHE_NAME = "ladybird-school-4b383a296b";
+var CACHE_NAME = "ladybird-school-83157ec79f";
 var ASSETS = [
   "./index.html",
   "./styles.css",
@@ -24,7 +24,18 @@ var ASSETS = [
 ];
 
 self.addEventListener("install", function(e){
-  e.waitUntil(caches.open(CACHE_NAME).then(function(cache){ return cache.addAll(ASSETS); }));
+  // cache:"reload" makes every file come fresh from the server, never from the
+  // browser's own HTTP cache - otherwise a new service worker could store an
+  // OLD copy of app.js under its new cache name. Any failed download aborts
+  // the install so a half-cached app is never activated.
+  e.waitUntil(caches.open(CACHE_NAME).then(function(cache){
+    return Promise.all(ASSETS.map(function(url){
+      return fetch(new Request(url, { cache: "reload" })).then(function(resp){
+        if (!resp.ok) throw new Error("Could not cache " + url + " (" + resp.status + ")");
+        return cache.put(url, resp);
+      });
+    }));
+  }));
   self.skipWaiting();
 });
 
@@ -46,11 +57,20 @@ self.addEventListener("fetch", function(e){
   if (e.request.url.indexOf("/.netlify/functions/") !== -1) return;
   e.respondWith(
     caches.match(e.request).then(function(cached){
-      return cached || fetch(e.request).then(function(resp){
-        var copy = resp.clone();
-        caches.open(CACHE_NAME).then(function(cache){ cache.put(e.request, copy); });
+      if (cached) return cached;
+      return fetch(e.request).then(function(resp){
+        // Only keep good same-origin responses - never store errors.
+        if (resp && resp.ok && resp.type === "basic"){
+          var copy = resp.clone();
+          caches.open(CACHE_NAME).then(function(cache){ cache.put(e.request, copy); });
+        }
         return resp;
-      }).catch(function(){ return cached; });
+      }).catch(function(){
+        // Offline and not cached: open the app shell for page loads instead of
+        // a browser error page; fail cleanly for anything else.
+        if (e.request.mode === "navigate") return caches.match("./index.html");
+        return Response.error();
+      });
     })
   );
 });

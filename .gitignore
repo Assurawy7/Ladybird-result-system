@@ -4,3 +4,6 @@ node_modules/
 service-account*.json
 *.local.json
 .netlify/
+
+# state backups written by scripts/repair-media-links.js (contain pupil data)
+state-backup-*.json

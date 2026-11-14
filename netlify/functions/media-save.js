@@ -7,8 +7,7 @@
    ========================================================================== */
 "use strict";
 
-const { query } = require("./_db");
-const { getAuthedUser } = require("./_auth");
+const { getAuthedUserLight } = require("./_auth");
 const { putMedia } = require("./_r2");
 
 const MAX_DATA_URL_LENGTH = 8 * 1024 * 1024; // ~8MB of base64, generous ceiling for a compressed photo/signature
@@ -30,15 +29,13 @@ exports.handler = async (event) => {
     return { statusCode: 413, body: JSON.stringify({ ok: false, error: "Image too large." }) };
   }
 
-  let stateRow;
+  let auth;
   try {
-    stateRow = (await query("SELECT state FROM school_state WHERE id = 1")).rows[0];
+    auth = await getAuthedUserLight(event);
   } catch (err) {
     console.error("media-save DB error", err);
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: "Could not reach the database." }) };
   }
-  const state = (stateRow && stateRow.state) || {};
-  const auth = await getAuthedUser(event, state);
   if (!auth) return { statusCode: 401, body: JSON.stringify({ ok: false, error: "Not signed in." }) };
 
   try {
