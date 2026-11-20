@@ -69,11 +69,9 @@ function ensureScoreRecord(studentId, subjectId, classArmId, sessionId, termId){
    but contribute 0 to the total and are flagged separately. */
 function computeSubjectTotal(rec, scheme){
   var total = 0, missing = [], hasAbsent = false, hasExcused = false, anyEntered = false;
-  var enteredWeight = 0, totalWeight = 0;
-  if (rec && rec.attendanceState==="ABSENT"){ return { total:0, isComplete:true, missingComponents:[], hasAbsent:true, hasExcused:false, anyEntered:false, projectedTotal:null }; }
-  if (rec && rec.attendanceState==="EXCUSED"){ return { total:0, isComplete:true, missingComponents:[], hasAbsent:false, hasExcused:true, anyEntered:false, projectedTotal:null }; }
+  if (rec && rec.attendanceState==="ABSENT"){ return { total:0, isComplete:true, missingComponents:[], hasAbsent:true, hasExcused:false, anyEntered:false }; }
+  if (rec && rec.attendanceState==="EXCUSED"){ return { total:0, isComplete:true, missingComponents:[], hasAbsent:false, hasExcused:true, anyEntered:false }; }
   scheme.components.filter(function(c){return c.active;}).forEach(function(c){
-    totalWeight += c.weight;
     var v = rec ? rec.components[c.id] : undefined;
     if (v === SCORE_STATES.ABSENT){ hasAbsent = true; return; }
     if (v === SCORE_STATES.EXCUSED){ hasExcused = true; return; }
@@ -81,29 +79,17 @@ function computeSubjectTotal(rec, scheme){
     var num = Number(v);
     if (isNaN(num)) { missing.push(c.name); return; }
     anyEntered = true;
-    enteredWeight += c.weight;
     var weighted = (num / c.maxScore) * c.weight;
     total += weighted;
   });
   total = Math.round(total * 100) / 100;
-  var isComplete = missing.length === 0;
-  // PROVISIONAL "so far" total: the marks earned so far, scaled up to the full
-  // mark scheme (e.g. 12/20 + 12/20 on CA gives 60 out of 100). Lets averages
-  // and positions start reading while scores are still being entered. For a
-  // finished subject it is exactly the normal total.
-  var projectedTotal = null;
-  if (isComplete && !hasAbsent && !hasExcused){ projectedTotal = total; }
-  else if (anyEntered && !hasAbsent && !hasExcused && enteredWeight > 0){
-    projectedTotal = Math.round(total * (totalWeight / enteredWeight) * 100) / 100;
-  }
   return {
     total: total,
-    isComplete: isComplete,
+    isComplete: missing.length === 0,
     missingComponents: missing,
     hasAbsent: hasAbsent,
     hasExcused: hasExcused,
-    anyEntered: anyEntered,
-    projectedTotal: projectedTotal
+    anyEntered: anyEntered
   };
 }
 
@@ -201,21 +187,16 @@ function computeSubjectClassResults(classArmId, subjectId, sessionId, termId){
   var rows = students.map(function(stu){
     var rec = getScoreRecord(stu.id, subjectId, classArmId, sessionId, termId);
     var calc = computeSubjectTotal(rec, scheme);
-    var final = calc.isComplete && !calc.hasAbsent && !calc.hasExcused;
-    var provisional = !final && calc.projectedTotal !== null;
-    var shownTotal = final ? calc.total : (provisional ? calc.projectedTotal : null);
-    var band = shownTotal !== null ? gradeFor(shownTotal, grading) : { grade:"-", remark:"", point:null };
-    return { student: stu, rec: rec, calc: calc, grade: band.grade, remark: band.remark, provisional: provisional, shownTotal: shownTotal };
+    var band = calc.isComplete && !calc.hasAbsent && !calc.hasExcused ? gradeFor(calc.total, grading) : { grade:"-", remark:"", point:null };
+    return { student: stu, rec: rec, calc: calc, grade: band.grade, remark: band.remark };
   });
 
-  // Averages and positions start reading as soon as scores are entered
-  // (provisional rows are included); once a subject is complete the numbers are final.
-  var scoredRows = rows.filter(function(r){ return r.shownTotal !== null; });
-  var classAverage = scoredRows.length
-    ? Math.round((scoredRows.reduce(function(a,r){return a+r.shownTotal;},0) / scoredRows.length) * 100) / 100
+  var completeRows = rows.filter(function(r){ return r.calc.isComplete && !r.calc.hasAbsent && !r.calc.hasExcused; });
+  var classAverage = completeRows.length
+    ? Math.round((completeRows.reduce(function(a,r){return a+r.calc.total;},0) / completeRows.length) * 100) / 100
     : null;
 
-  assignPositions(rows, function(r){ return r.shownTotal; });
+  assignPositions(rows, function(r){ return r.calc.isComplete && !r.calc.hasAbsent && !r.calc.hasExcused ? r.calc.total : null; });
 
   return { classArm: classArm, subject: subject, scheme: scheme, grading: grading, rows: rows, classAverage: classAverage };
 }
@@ -257,25 +238,18 @@ function computeStudentOverall(studentId, classArmId, sessionId, termId){
     var grading = getGradingScheme(subject, classArm);
     var rec = getScoreRecord(studentId, subject.id, classArmId, sessionId, termId);
     var calc = computeSubjectTotal(rec, scheme);
-    var final = calc.isComplete && !calc.hasAbsent && !calc.hasExcused;
-    var provisional = !final && calc.projectedTotal !== null;
-    var shownTotal = final ? calc.total : (provisional ? calc.projectedTotal : null);
-    var band = shownTotal !== null ? gradeFor(shownTotal, grading) : { grade:"-", remark:"", point:null };
-    return { subject: subject, calc: calc, grade: band.grade, remark: band.remark, provisional: provisional, shownTotal: shownTotal };
+    var band = calc.isComplete && !calc.hasAbsent && !calc.hasExcused ? gradeFor(calc.total, grading) : { grade:"-", remark:"", point:null };
+    return { subject: subject, calc: calc, grade: band.grade, remark: band.remark };
   });
 
   var forAverage = subjectRows.filter(function(r){ return r.subject.includeInAverage; });
   var complete = forAverage.filter(function(r){ return r.calc.isComplete && !r.calc.hasAbsent && !r.calc.hasExcused; });
-  var counted = forAverage.filter(function(r){ return r.shownTotal !== null; });
-  var grandTotal = counted.reduce(function(a,r){ return a + r.shownTotal; }, 0);
-  var average = counted.length ? Math.round((grandTotal / counted.length) * 100) / 100 : null;
+  var grandTotal = complete.reduce(function(a,r){ return a + r.calc.total; }, 0);
+  var average = complete.length ? Math.round((grandTotal / complete.length) * 100) / 100 : null;
   var allComplete = forAverage.length > 0 && complete.length === forAverage.length;
 
-  // "provisional" = the average/position are based on scores entered so far,
-  // not yet a finished term result.
   return { subjectRows: subjectRows, grandTotal: Math.round(grandTotal*100)/100, average: average, allComplete: allComplete,
-           provisional: average !== null && !allComplete,
-           totalSubjects: forAverage.length, completedSubjects: complete.length, countedSubjects: counted.length };
+           totalSubjects: forAverage.length, completedSubjects: complete.length };
 }
 
 /* True when EVERY student who takes this subject in this class has all score
@@ -371,14 +345,12 @@ function computeClassOverview(classArmId, sessionId, termId){
     var overall = computeStudentOverall(stu.id, classArmId, sessionId, termId);
     return { student: stu, overall: overall };
   });
-  // Positions and the class average start reading as soon as scores are entered
-  // (provisional until a student's subjects are all complete).
-  assignPositions(overallRows, function(r){ return r.overall.average; });
+  assignPositions(overallRows, function(r){ return r.overall.allComplete ? r.overall.average : null; });
 
   var classAverage = null;
-  var scoredOverall = overallRows.filter(function(r){ return r.overall.average !== null; });
-  if (scoredOverall.length){
-    classAverage = Math.round((scoredOverall.reduce(function(a,r){return a+r.overall.average;},0)/scoredOverall.length)*100)/100;
+  var completeOverall = overallRows.filter(function(r){ return r.overall.allComplete; });
+  if (completeOverall.length){
+    classAverage = Math.round((completeOverall.reduce(function(a,r){return a+r.overall.average;},0)/completeOverall.length)*100)/100;
   }
 
   return { classArm: classArm, subjects: subjects, subjectStatuses: subjectStatuses, students: overallRows, classAverage: classAverage };

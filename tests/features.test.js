@@ -176,7 +176,7 @@ const ids=(c,expr)=>run(c,`(${expr}).map(function(x){return x.id})`).join();
   t("F7 the CRK filter lists only CRK students", /Grace/.test(h) && !/Musa/.test(h) && !/Amina/.test(h));
 }
 
-// ===== G. Report card marks partial results clearly =====
+// ===== G. Report cards show real results only =====
 { const c=app(); run(c,"state=seedState(); state.scores=[]; state.classSubjectStatus={}; state.users.forEach(function(u){ if(u.role==='SUPER_ADMIN') state.currentUser=u; });");
   const info=JSON.parse(run(c,'(function(){ var stu=state.students[0]; var ca=byId(state.classArms,stu.classArmId); var subs=subjectsForStudent(stu,ca,state.currentTermId); return JSON.stringify({id:stu.id,ca:ca.id,ses:state.currentSessionId,term:state.currentTermId,subs:subs.map(function(x){return x.id;})}); })()'));
   const comps=JSON.parse(run(c,'JSON.stringify(getAssessmentScheme(byId(state.subjects,"'+info.subs[0]+'"),byId(state.classArms,"'+info.ca+'")).components.filter(function(x){return x.active;}).map(function(x){return {id:x.id,max:x.maxScore};}))'));
@@ -184,9 +184,9 @@ const ids=(c,expr)=>run(c,`(${expr}).map(function(x){return x.id})`).join();
   const put=(subj,vals)=>run(c,`(function(){ var r=ensureScoreRecord("${info.id}","${subj}","${info.ca}","${info.ses}","${info.term}"); r.components=${JSON.stringify(vals)}; })()`);
   put(info.subs[0], part);
   let h=""; try{ h=run(c,`generateReportCardHtml("${info.id}","${info.ca}","${info.ses}","${info.term}")`); }catch(e){ h="ERR:"+e.message; }
-  t("G1 a report card built from partial scores says PROVISIONAL and stars the figures", !/ERR:/.test(h) && /PROVISIONAL RESULT/.test(h) && /\d\*/.test(h));
+  t("G1 a report card built from partial scores shows no total, no star and no provisional banner", !/ERR:/.test(h) && !/PROVISIONAL/.test(h) && !/\d\*/.test(h) && />—</.test(h));
   info.subs.forEach(su=>put(su, full));
   try{ h=run(c,`generateReportCardHtml("${info.id}","${info.ca}","${info.ses}","${info.term}")`); }catch(e){ h="ERR:"+e.message; }
-  t("G2 once every subject is complete the PROVISIONAL banner is gone", !/ERR:/.test(h) && !/PROVISIONAL RESULT/.test(h));
+  t("G2 once every subject is complete the report card still builds, with real figures", !/ERR:/.test(h) && !/PROVISIONAL RESULT/.test(h));
 }
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail?1:0);

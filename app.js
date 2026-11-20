@@ -1084,11 +1084,9 @@ function ensureScoreRecord(studentId, subjectId, classArmId, sessionId, termId){
    but contribute 0 to the total and are flagged separately. */
 function computeSubjectTotal(rec, scheme){
   var total = 0, missing = [], hasAbsent = false, hasExcused = false, anyEntered = false;
-  var enteredWeight = 0, totalWeight = 0;
-  if (rec && rec.attendanceState==="ABSENT"){ return { total:0, isComplete:true, missingComponents:[], hasAbsent:true, hasExcused:false, anyEntered:false, projectedTotal:null }; }
-  if (rec && rec.attendanceState==="EXCUSED"){ return { total:0, isComplete:true, missingComponents:[], hasAbsent:false, hasExcused:true, anyEntered:false, projectedTotal:null }; }
+  if (rec && rec.attendanceState==="ABSENT"){ return { total:0, isComplete:true, missingComponents:[], hasAbsent:true, hasExcused:false, anyEntered:false }; }
+  if (rec && rec.attendanceState==="EXCUSED"){ return { total:0, isComplete:true, missingComponents:[], hasAbsent:false, hasExcused:true, anyEntered:false }; }
   scheme.components.filter(function(c){return c.active;}).forEach(function(c){
-    totalWeight += c.weight;
     var v = rec ? rec.components[c.id] : undefined;
     if (v === SCORE_STATES.ABSENT){ hasAbsent = true; return; }
     if (v === SCORE_STATES.EXCUSED){ hasExcused = true; return; }
@@ -1096,29 +1094,17 @@ function computeSubjectTotal(rec, scheme){
     var num = Number(v);
     if (isNaN(num)) { missing.push(c.name); return; }
     anyEntered = true;
-    enteredWeight += c.weight;
     var weighted = (num / c.maxScore) * c.weight;
     total += weighted;
   });
   total = Math.round(total * 100) / 100;
-  var isComplete = missing.length === 0;
-  // PROVISIONAL "so far" total: the marks earned so far, scaled up to the full
-  // mark scheme (e.g. 12/20 + 12/20 on CA gives 60 out of 100). Lets averages
-  // and positions start reading while scores are still being entered. For a
-  // finished subject it is exactly the normal total.
-  var projectedTotal = null;
-  if (isComplete && !hasAbsent && !hasExcused){ projectedTotal = total; }
-  else if (anyEntered && !hasAbsent && !hasExcused && enteredWeight > 0){
-    projectedTotal = Math.round(total * (totalWeight / enteredWeight) * 100) / 100;
-  }
   return {
     total: total,
-    isComplete: isComplete,
+    isComplete: missing.length === 0,
     missingComponents: missing,
     hasAbsent: hasAbsent,
     hasExcused: hasExcused,
-    anyEntered: anyEntered,
-    projectedTotal: projectedTotal
+    anyEntered: anyEntered
   };
 }
 
@@ -1216,21 +1202,16 @@ function computeSubjectClassResults(classArmId, subjectId, sessionId, termId){
   var rows = students.map(function(stu){
     var rec = getScoreRecord(stu.id, subjectId, classArmId, sessionId, termId);
     var calc = computeSubjectTotal(rec, scheme);
-    var final = calc.isComplete && !calc.hasAbsent && !calc.hasExcused;
-    var provisional = !final && calc.projectedTotal !== null;
-    var shownTotal = final ? calc.total : (provisional ? calc.projectedTotal : null);
-    var band = shownTotal !== null ? gradeFor(shownTotal, grading) : { grade:"-", remark:"", point:null };
-    return { student: stu, rec: rec, calc: calc, grade: band.grade, remark: band.remark, provisional: provisional, shownTotal: shownTotal };
+    var band = calc.isComplete && !calc.hasAbsent && !calc.hasExcused ? gradeFor(calc.total, grading) : { grade:"-", remark:"", point:null };
+    return { student: stu, rec: rec, calc: calc, grade: band.grade, remark: band.remark };
   });
 
-  // Averages and positions start reading as soon as scores are entered
-  // (provisional rows are included); once a subject is complete the numbers are final.
-  var scoredRows = rows.filter(function(r){ return r.shownTotal !== null; });
-  var classAverage = scoredRows.length
-    ? Math.round((scoredRows.reduce(function(a,r){return a+r.shownTotal;},0) / scoredRows.length) * 100) / 100
+  var completeRows = rows.filter(function(r){ return r.calc.isComplete && !r.calc.hasAbsent && !r.calc.hasExcused; });
+  var classAverage = completeRows.length
+    ? Math.round((completeRows.reduce(function(a,r){return a+r.calc.total;},0) / completeRows.length) * 100) / 100
     : null;
 
-  assignPositions(rows, function(r){ return r.shownTotal; });
+  assignPositions(rows, function(r){ return r.calc.isComplete && !r.calc.hasAbsent && !r.calc.hasExcused ? r.calc.total : null; });
 
   return { classArm: classArm, subject: subject, scheme: scheme, grading: grading, rows: rows, classAverage: classAverage };
 }
@@ -1272,25 +1253,18 @@ function computeStudentOverall(studentId, classArmId, sessionId, termId){
     var grading = getGradingScheme(subject, classArm);
     var rec = getScoreRecord(studentId, subject.id, classArmId, sessionId, termId);
     var calc = computeSubjectTotal(rec, scheme);
-    var final = calc.isComplete && !calc.hasAbsent && !calc.hasExcused;
-    var provisional = !final && calc.projectedTotal !== null;
-    var shownTotal = final ? calc.total : (provisional ? calc.projectedTotal : null);
-    var band = shownTotal !== null ? gradeFor(shownTotal, grading) : { grade:"-", remark:"", point:null };
-    return { subject: subject, calc: calc, grade: band.grade, remark: band.remark, provisional: provisional, shownTotal: shownTotal };
+    var band = calc.isComplete && !calc.hasAbsent && !calc.hasExcused ? gradeFor(calc.total, grading) : { grade:"-", remark:"", point:null };
+    return { subject: subject, calc: calc, grade: band.grade, remark: band.remark };
   });
 
   var forAverage = subjectRows.filter(function(r){ return r.subject.includeInAverage; });
   var complete = forAverage.filter(function(r){ return r.calc.isComplete && !r.calc.hasAbsent && !r.calc.hasExcused; });
-  var counted = forAverage.filter(function(r){ return r.shownTotal !== null; });
-  var grandTotal = counted.reduce(function(a,r){ return a + r.shownTotal; }, 0);
-  var average = counted.length ? Math.round((grandTotal / counted.length) * 100) / 100 : null;
+  var grandTotal = complete.reduce(function(a,r){ return a + r.calc.total; }, 0);
+  var average = complete.length ? Math.round((grandTotal / complete.length) * 100) / 100 : null;
   var allComplete = forAverage.length > 0 && complete.length === forAverage.length;
 
-  // "provisional" = the average/position are based on scores entered so far,
-  // not yet a finished term result.
   return { subjectRows: subjectRows, grandTotal: Math.round(grandTotal*100)/100, average: average, allComplete: allComplete,
-           provisional: average !== null && !allComplete,
-           totalSubjects: forAverage.length, completedSubjects: complete.length, countedSubjects: counted.length };
+           totalSubjects: forAverage.length, completedSubjects: complete.length };
 }
 
 /* True when EVERY student who takes this subject in this class has all score
@@ -1386,14 +1360,12 @@ function computeClassOverview(classArmId, sessionId, termId){
     var overall = computeStudentOverall(stu.id, classArmId, sessionId, termId);
     return { student: stu, overall: overall };
   });
-  // Positions and the class average start reading as soon as scores are entered
-  // (provisional until a student's subjects are all complete).
-  assignPositions(overallRows, function(r){ return r.overall.average; });
+  assignPositions(overallRows, function(r){ return r.overall.allComplete ? r.overall.average : null; });
 
   var classAverage = null;
-  var scoredOverall = overallRows.filter(function(r){ return r.overall.average !== null; });
-  if (scoredOverall.length){
-    classAverage = Math.round((scoredOverall.reduce(function(a,r){return a+r.overall.average;},0)/scoredOverall.length)*100)/100;
+  var completeOverall = overallRows.filter(function(r){ return r.overall.allComplete; });
+  if (completeOverall.length){
+    classAverage = Math.round((completeOverall.reduce(function(a,r){return a+r.overall.average;},0)/completeOverall.length)*100)/100;
   }
 
   return { classArm: classArm, subjects: subjects, subjectStatuses: subjectStatuses, students: overallRows, classAverage: classAverage };
@@ -1470,6 +1442,7 @@ function ICONS(name){
 }
 
 function renderApp(){
+  try { if (state && state.school && state.school.name) document.title = state.school.name + " - Results"; } catch (e) { /* title is cosmetic */ }
   var root = el("app-root");
   if (!state.currentUser || state.view==="login"){
     root.innerHTML = renderLoginView();
@@ -1786,7 +1759,7 @@ function renderAdminDashboard(){
       '<div class="table-wrap"><table class="data-table"><thead><tr><th>Class</th><th>Students</th><th>Subjects Done</th><th>Class Avg</th><th></th></tr></thead><tbody>'+classArmRows+'</tbody></table></div>'+
     '</div>'+
     '<div class="card">'+
-      '<div class="card-header"><h3>Grade Distribution (this term, includes provisional)</h3></div>'+
+      '<div class="card-header"><h3>Grade Distribution (this term)</h3></div>'+
       '<div class="bar-chart">'+gradeBars+'</div>'+
     '</div>'+
   '</div>';
@@ -2275,11 +2248,11 @@ function renderStudentProfile(){
   var termResultsHtml = state.terms.filter(function(t){return t.sessionId===state.currentSessionId;}).map(function(t){
     var overall = computeStudentOverall(stu.id, stu.classArmId, state.currentSessionId, t.id);
     var rows = overall.subjectRows.map(function(r){
-      var display = r.calc.hasAbsent ? "ABSENT" : r.calc.hasExcused ? "EXCUSED" : (r.calc.isComplete ? r.calc.total : (r.provisional ? r.shownTotal+"*" : "—"));
+      var display = r.calc.hasAbsent ? "ABSENT" : r.calc.hasExcused ? "EXCUSED" : (r.calc.isComplete ? r.calc.total : "—");
       return '<tr><td>'+escapeHtml(r.subject.name)+'</td><td>'+display+'</td><td>'+r.grade+'</td></tr>';
     }).join("");
     return '<div class="card">'+
-      '<div class="card-header"><h3>'+escapeHtml(t.name)+'</h3>'+(overall.average!==null?'<span class="chip chip-good">Average: '+overall.average+'%'+(overall.provisional?' (so far)':'')+'</span>':'<span class="chip">No scores yet</span>')+'</div>'+
+      '<div class="card-header"><h3>'+escapeHtml(t.name)+'</h3>'+(overall.average!==null?'<span class="chip chip-good">Average: '+overall.average+'%</span>':'<span class="chip">Incomplete</span>')+'</div>'+
       (rows ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>Subject</th><th>Score</th><th>Grade</th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '<div class="empty-inline">No scores recorded.</div>')+
     '</div>';
   }).join("");
@@ -2820,8 +2793,8 @@ function renderFormReviewView(){
     var photoHtml = stu.photo ? '<img src="'+stu.photo+'" class="avatar-photo avatar-xs"/>' : '<div class="avatar-photo avatar-xs avatar-fallback">'+escapeHtml(stu.name[0])+'</div>';
     return '<tr>'+
       '<td class="sticky-col">'+photoHtml+' '+escapeHtml(stu.name)+'</td>'+
-      '<td>'+(row.overall.average!==null?row.overall.average+(row.overall.provisional?'*':''):'<span class="muted">—</span>')+'</td>'+
-      '<td>'+(row.position?row.position+(row.overall.provisional?'*':''):'—')+'</td>'+
+      '<td>'+(row.overall.average!==null?row.overall.average:'<span class="muted">—</span>')+'</td>'+
+      '<td>'+(row.position||'—')+'</td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="openCommentEditor(\''+stu.id+'\')">'+(c.formTeacherComment?'Edit Comment':'Add Comment')+'</button></td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="openFeesEditor(\''+stu.id+'\')">'+(c.nextFees||c.examFee?'Edit Fees':'Set Fees')+'</button></td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="openDomainEditor(\''+stu.id+'\')">Skills/Behaviour</button></td>'+
@@ -3147,7 +3120,7 @@ function renderReportsView(){
     var overall = computeStudentOverall(stu.id, classArmId, state.currentSessionId, state.currentTermId);
     return '<tr><td><input type="checkbox" class="report-check" value="'+stu.id+'"/></td>'+
       '<td>'+escapeHtml(stu.name)+'</td><td>'+escapeHtml(stu.admissionNo)+'</td>'+
-      '<td>'+(overall.average!==null?overall.average+"%"+(overall.provisional?"*":""):"—")+'</td>'+
+      '<td>'+(overall.average!==null?overall.average+"%":"—")+'</td>'+
       '<td><button class="btn btn-sm btn-primary" onclick="previewReport(\''+stu.id+'\',\''+classArmId+'\')">Preview</button></td></tr>';
   }).join("");
 
@@ -3222,7 +3195,7 @@ function generateReportCardHtml(studentId, classArmId, sessionId, termId, forced
   var compHeaderCols = componentNames.map(function(n){ return '<th>'+escapeHtml(n)+'</th>'; }).join("");
 
   var subjectRows = overall.subjectRows.map(function(r){
-    var display = r.calc.hasAbsent ? "ABS" : r.calc.hasExcused ? "EXC" : (r.calc.isComplete ? r.calc.total : (r.provisional ? r.shownTotal+"*" : "—"));
+    var display = r.calc.hasAbsent ? "ABS" : r.calc.hasExcused ? "EXC" : (r.calc.isComplete ? r.calc.total : "—");
     var subjScheme = getAssessmentScheme(r.subject, classArm);
     var rec = getScoreRecord(studentId, r.subject.id, classArmId, sessionId, termId);
     var compCells = (subjScheme ? subjScheme.components.filter(function(c){return c.active;}).sort(function(a,b){return a.order-b.order;}) : []).map(function(c){
@@ -3233,7 +3206,7 @@ function generateReportCardHtml(studentId, classArmId, sessionId, termId, forced
     return '<tr><td class="rc-subject-name">'+escapeHtml(r.subject.name)+'</td>'+compCells+
       '<td><strong>'+display+'</strong></td><td>'+r.grade+'</td>'+
       '<td>'+(stat.classAverage!==null?stat.classAverage:"—")+'</td>'+
-      '<td>'+(stat.position?ordinal(stat.position)+(r.provisional?"*":""):"—")+'</td>'+
+      '<td>'+(stat.position?ordinal(stat.position):"—")+'</td>'+
       '<td>'+escapeHtml(r.remark||"")+'</td></tr>';
   }).join("");
 
@@ -3262,7 +3235,6 @@ function generateReportCardHtml(studentId, classArmId, sessionId, termId, forced
         (template.showPhoto ? photoHtml : '')+
       '</div>'+
       '<div class="rc-title">TERMINAL REPORT — '+escapeHtml(template.name)+'</div>'+
-      (overall.provisional ? '<div class="rc-provisional" style="margin:6px 0;padding:6px 10px;border:1px solid #b45309;color:#b45309;font-weight:700;text-align:center;font-size:12px">PROVISIONAL RESULT &mdash; * marks are based on the scores entered so far. Not all scores are in yet.</div>' : '')+
       '<div class="rc-info-grid">'+
         '<div><span>Name</span><strong>'+escapeHtml(stu.name)+'</strong></div>'+
         '<div><span>Sex</span><strong>'+escapeHtml(stu.gender||"—")+'</strong></div>'+
@@ -3272,8 +3244,8 @@ function generateReportCardHtml(studentId, classArmId, sessionId, termId, forced
         '<div><span>Term</span><strong>'+escapeHtml(termName(termId))+'</strong></div>'+
         '<div><span>Session</span><strong>'+escapeHtml(sessionName(sessionId))+'</strong></div>'+
         '<div><span>Next Term Begins</span><strong>'+escapeHtml((term&&term.nextTermStartDate)||"—")+'</strong></div>'+
-        '<div><span>Average</span><strong>'+(overall.average!==null?overall.average+"%"+(overall.provisional?"*":""):"—")+'</strong></div>'+
-        '<div><span>Position</span><strong>'+(myPosRow&&myPosRow.position?ordinal(myPosRow.position)+(overall.provisional?"*":""):"—")+' of '+classOv.students.length+'</strong></div>'+
+        '<div><span>Average</span><strong>'+(overall.average!==null?overall.average+"%":"—")+'</strong></div>'+
+        '<div><span>Position</span><strong>'+(myPosRow&&myPosRow.position?ordinal(myPosRow.position):"—")+' of '+classOv.students.length+'</strong></div>'+
       '</div>'+
       '<div class="table-wrap"><table class="rc-subject-table"><thead><tr><th>Subject</th>'+compHeaderCols+'<th>Total</th><th>Grade</th><th>Class Avg</th><th>Position</th><th>Remark</th></tr></thead><tbody>'+subjectRows+'</tbody></table></div>'+
       '<div class="rc-legend">'+gradingLegend+'</div>'+

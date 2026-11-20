@@ -1,7 +1,7 @@
 /* ==========================================================================
    service-worker.template.js
    This is the file to EDIT. `npm run build` generates the real
-   `service-worker.js` from this template, substituting 3035b9c013
+   `service-worker.js` from this template, substituting 1237b0d95a
    with a hash computed automatically from app.js/styles.css/index.html/
    manifest.json - so the cache name always changes whenever any of those
    files change, and installed clients always pick up the update. You no
@@ -13,7 +13,7 @@
    Basic app-shell cache so the system keeps working offline once opened
    once.
    ========================================================================== */
-var CACHE_NAME = "ladybird-school-3035b9c013";
+var CACHE_NAME = "ladybird-school-1237b0d95a";
 var ASSETS = [
   "./index.html",
   "./styles.css",

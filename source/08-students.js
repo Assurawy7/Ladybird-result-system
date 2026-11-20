@@ -414,11 +414,11 @@ function renderStudentProfile(){
   var termResultsHtml = state.terms.filter(function(t){return t.sessionId===state.currentSessionId;}).map(function(t){
     var overall = computeStudentOverall(stu.id, stu.classArmId, state.currentSessionId, t.id);
     var rows = overall.subjectRows.map(function(r){
-      var display = r.calc.hasAbsent ? "ABSENT" : r.calc.hasExcused ? "EXCUSED" : (r.calc.isComplete ? r.calc.total : (r.provisional ? r.shownTotal+"*" : "—"));
+      var display = r.calc.hasAbsent ? "ABSENT" : r.calc.hasExcused ? "EXCUSED" : (r.calc.isComplete ? r.calc.total : "—");
       return '<tr><td>'+escapeHtml(r.subject.name)+'</td><td>'+display+'</td><td>'+r.grade+'</td></tr>';
     }).join("");
     return '<div class="card">'+
-      '<div class="card-header"><h3>'+escapeHtml(t.name)+'</h3>'+(overall.average!==null?'<span class="chip chip-good">Average: '+overall.average+'%'+(overall.provisional?' (so far)':'')+'</span>':'<span class="chip">No scores yet</span>')+'</div>'+
+      '<div class="card-header"><h3>'+escapeHtml(t.name)+'</h3>'+(overall.average!==null?'<span class="chip chip-good">Average: '+overall.average+'%</span>':'<span class="chip">Incomplete</span>')+'</div>'+
       (rows ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>Subject</th><th>Score</th><th>Grade</th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '<div class="empty-inline">No scores recorded.</div>')+
     '</div>';
   }).join("");

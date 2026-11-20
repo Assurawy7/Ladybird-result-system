@@ -21,58 +21,54 @@ function world(){
 }
 const run=(ctx,code)=>vm.runInContext(code,ctx);
 
-// ---------- 1. finished subjects: unchanged ----------
+// ---------- 1. only REAL totals: a finished subject ----------
 { const w=world(); w.stu("a","ca1"); w.score("a","math","ca1",{c1:12,c2:12,c3:50});
   const c=run(w.ctx,`computeSubjectTotal(getScoreRecord("a","math","ca1","se","t"),getAssessmentScheme(null,state.classArms[0]))`);
-  t("complete subject: total 74, complete, projected = 74", c.total===74 && c.isComplete && c.projectedTotal===74);
+  t("complete subject: total 74 and complete", c.total===74 && c.isComplete);
+  t("the calculation no longer produces any 'so far' projection", !("projectedTotal" in c));
   const o=run(w.ctx,`computeStudentOverall("a","ca1","se","t")`); const m=o.subjectRows.find(r=>r.subject.id==="math");
-  t("complete subject grade B2, not provisional", m.grade==="B2" && !m.provisional && m.shownTotal===74);
+  t("complete subject grade B2", m.grade==="B2" && !("provisional" in m) && !("shownTotal" in m));
 }
-// ---------- 2. CA only ----------
+// ---------- 2. unfinished subjects get NO total and NO grade ----------
 { const w=world(); w.stu("a","ca1");
-  w.score("a","math","ca1",{c1:12,c2:12}); 
-  let c=run(w.ctx,`computeSubjectTotal(getScoreRecord("a","math","ca1","se","t"),getAssessmentScheme(null,state.classArms[0]))`);
-  t("CA 12+12 only: not complete, raw total 24, projected 60", !c.isComplete && c.total===24 && near(c.projectedTotal,60));
-  w.score("a","eng","ca1",{c1:15});
-  c=run(w.ctx,`computeSubjectTotal(getScoreRecord("a","eng","ca1","se","t"),getAssessmentScheme(null,state.classArms[0]))`);
-  t("one CA only (15/20): projected 75", near(c.projectedTotal,75));
-  w.score("a","isl","ca1",{}); c=run(w.ctx,`computeSubjectTotal(getScoreRecord("a","isl","ca1","se","t"),getAssessmentScheme(null,state.classArms[0]))`);
-  t("nothing entered: no projected total", c.projectedTotal===null);
-  w.score("a","crk","ca1",{},{attendanceState:"ABSENT"}); c=run(w.ctx,`computeSubjectTotal(getScoreRecord("a","crk","ca1","se","t"),getAssessmentScheme(null,state.classArms[0]))`);
-  t("absent: no projected total", c.projectedTotal===null && c.hasAbsent);
+  w.score("a","math","ca1",{c1:12,c2:12});   // exam missing
+  w.score("a","eng","ca1",{c1:15});          // one column only
+  const o=run(w.ctx,`computeStudentOverall("a","ca1","se","t")`);
+  const math=o.subjectRows.find(r=>r.subject.id==="math"), eng=o.subjectRows.find(r=>r.subject.id==="eng");
+  t("CA only: grade is '-' (no grade) and the real raw total stays 24, not scaled to 60", math.grade==="-" && !math.calc.isComplete && math.calc.total===24);
+  t("one column only: grade is '-'", eng.grade==="-" && !eng.calc.isComplete);
+  t("an unfinished student has NO average and is not 'allComplete'", o.average===null && o.allComplete===false && o.completedSubjects===0);
 }
-// ---------- 3. overall average / provisional flag ----------
+// ---------- 3. the average counts finished subjects only ----------
 { const w=world(); w.stu("a","ca1"); w.stu("b","ca1");
   w.score("a","math","ca1",{c1:12,c2:12,c3:50});  // complete 74
-  w.score("a","eng","ca1",{c1:12,c2:12});          // provisional 60
+  w.score("a","eng","ca1",{c1:12,c2:12});          // unfinished - must be ignored
   let o=run(w.ctx,`computeStudentOverall("a","ca1","se","t")`);
-  t("average now reads from the first scores: (74+60)/2 = 67", near(o.average,67) && o.countedSubjects===2);
-  t("flagged provisional while subjects are incomplete", o.provisional===true && o.allComplete===false);
+  t("average = the finished subject only (74), the unfinished one is ignored", near(o.average,74) && o.completedSubjects===1 && o.allComplete===false);
   const o2=run(w.ctx,`computeStudentOverall("b","ca1","se","t")`);
-  t("a student with no scores has no average", o2.average===null && o2.provisional===false);
-  w.score("a","isl","ca1",{c1:10,c2:10,c3:30}); w.score("a","eng","ca1",{c1:12,c2:12,c3:36}); // complete eng=60 (second record, first one wins) 
+  t("a student with no scores has no average", o2.average===null);
 }
-// ---------- 4. finished results identical to before ----------
+// ---------- 4. finished results ----------
 { const w=world(); w.stu("a","ca1");
   w.score("a","math","ca1",{c1:12,c2:12,c3:50}); w.score("a","eng","ca1",{c1:15,c2:15,c3:45});
   const o=run(w.ctx,`computeStudentOverall("a","ca1","se","t")`);
-  // math 74, eng 15/20*20+15/20*20+45 = 75 ; average 74.5 ; islamic (default group) not scored
-  t("with every scored subject finished the average is the plain average", near(o.average,74.5));
+  t("with every scored subject finished the average is the plain average (74 and 75 -> 74.5)", near(o.average,74.5));
   w.score("a","isl","ca1",{c1:10,c2:10,c3:30});
   const o3=run(w.ctx,`computeStudentOverall("a","ca1","se","t")`);
-  t("allComplete true and provisional false once every subject is in", o3.allComplete===true && o3.provisional===false);
-  t("74.5 gets a grade now (B2 band 70-74 reaches it) - earlier bug stays fixed", o.subjectRows.find(r=>r.subject.id==="math").grade==="B2");
+  t("allComplete is true once every subject is in", o3.allComplete===true);
+  t("74.5 gets a grade (the earlier gap bug stays fixed)", o.subjectRows.find(r=>r.subject.id==="math").grade==="B2");
 }
-// ---------- 5. positions start immediately ----------
+// ---------- 5. positions only for finished results ----------
 { const w=world(); ["a","b","c"].forEach(s=>w.stu(s,"ca1"));
   w.score("a","math","ca1",{c1:20,c2:20}); w.score("b","math","ca1",{c1:10,c2:10}); w.score("c","math","ca1",{c1:15,c2:15});
-  const ov=run(w.ctx,`computeClassOverview("ca1","se","t")`);
-  const pos={}; ov.students.forEach(r=>pos[r.student.id]=r.position);
-  t("overall positions are given from CA scores (a=1, c=2, b=3)", pos.a===1 && pos.c===2 && pos.b===3);
-  t("class average reads from the same scores (100,75,50 -> 75)", near(ov.classAverage,75));
-  t("every student is marked provisional", ov.students.every(r=>r.overall.provisional));
-  const res=run(w.ctx,`computeSubjectClassResults("ca1","math","se","t")`);
-  t("subject results: provisional rows get grade and position", res.rows.every(r=>r.provisional && r.grade!=="-" && r.position) && near(res.classAverage,75));
+  let ov=run(w.ctx,`computeClassOverview("ca1","se","t")`);
+  t("CA scores alone give NO overall position and NO class average", ov.students.every(r=>!r.position) && ov.classAverage===null);
+  let res=run(w.ctx,`computeSubjectClassResults("ca1","math","se","t")`);
+  t("CA scores alone give no subject grade, position or class average", res.rows.every(r=>r.grade==="-" && !r.position) && res.classAverage===null);
+  [["a",50],["b",30],["c",40]].forEach(([id,ex])=>w.st.scores.find(r=>r.studentId===id&&r.subjectId==="math").components.c3=ex);
+  res=run(w.ctx,`computeSubjectClassResults("ca1","math","se","t")`);
+  const pos={}; res.rows.forEach(r=>pos[r.student.id]=r.position);
+  t("once the exam is in, subject positions appear (a=1, c=2, b=3)", pos.a===1 && pos.c===2 && pos.b===3 && near(res.classAverage,(90+50+70)/3));
 }
 // ---------- 6. Islamic Studies / CRK groups ----------
 { const w=world(); w.stu("m1","ca1"); w.stu("m2","ca1",{religiousTrack:""}); w.stu("c1","ca1",{religiousTrack:"CRK"}); w.stu("m3","ca2");
@@ -102,8 +98,9 @@ const run=(ctx,code)=>vm.runInContext(code,ctx);
   t("an Absent student counts as complete", run(w.ctx,`isSubjectResultComplete("ca1","eng","se","t")`)===true);
   t("class overview marks the subject complete", run(w.ctx,`computeClassOverview("ca1","se","t").subjectStatuses.find(function(s){return s.subject.id==="eng"}).complete`)===true);
 }
-// ---------- 8. built app carries the new screens ----------
-{ const app=fs.readFileSync(R+"/app.js","utf8"); 
-  t("built app.js includes the provisional banner, submit rule, religion fields", /PROVISIONAL RESULT/.test(app) && /still have missing scores/.test(app) && /f-reli/.test(app) && /sub-reli/.test(app)); }
+// ---------- 8. the built app has no provisional logic left ----------
+{ const app=fs.readFileSync(R+"/app.js","utf8");
+  t("built app.js contains NO provisional / projected / 'so far' score code", !/PROVISIONAL RESULT|projectedTotal|shownTotal|\(so far\)|includes provisional/.test(app));
+  t("built app.js still has the submit rule and the religion fields", /still have missing scores/.test(app) && /f-reli/.test(app) && /sub-reli/.test(app)); }
 
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail?1:0);

@@ -28,7 +28,7 @@ function renderReportsView(){
     var overall = computeStudentOverall(stu.id, classArmId, state.currentSessionId, state.currentTermId);
     return '<tr><td><input type="checkbox" class="report-check" value="'+stu.id+'"/></td>'+
       '<td>'+escapeHtml(stu.name)+'</td><td>'+escapeHtml(stu.admissionNo)+'</td>'+
-      '<td>'+(overall.average!==null?overall.average+"%"+(overall.provisional?"*":""):"—")+'</td>'+
+      '<td>'+(overall.average!==null?overall.average+"%":"—")+'</td>'+
       '<td><button class="btn btn-sm btn-primary" onclick="previewReport(\''+stu.id+'\',\''+classArmId+'\')">Preview</button></td></tr>';
   }).join("");
 
@@ -103,7 +103,7 @@ function generateReportCardHtml(studentId, classArmId, sessionId, termId, forced
   var compHeaderCols = componentNames.map(function(n){ return '<th>'+escapeHtml(n)+'</th>'; }).join("");
 
   var subjectRows = overall.subjectRows.map(function(r){
-    var display = r.calc.hasAbsent ? "ABS" : r.calc.hasExcused ? "EXC" : (r.calc.isComplete ? r.calc.total : (r.provisional ? r.shownTotal+"*" : "—"));
+    var display = r.calc.hasAbsent ? "ABS" : r.calc.hasExcused ? "EXC" : (r.calc.isComplete ? r.calc.total : "—");
     var subjScheme = getAssessmentScheme(r.subject, classArm);
     var rec = getScoreRecord(studentId, r.subject.id, classArmId, sessionId, termId);
     var compCells = (subjScheme ? subjScheme.components.filter(function(c){return c.active;}).sort(function(a,b){return a.order-b.order;}) : []).map(function(c){
@@ -114,7 +114,7 @@ function generateReportCardHtml(studentId, classArmId, sessionId, termId, forced
     return '<tr><td class="rc-subject-name">'+escapeHtml(r.subject.name)+'</td>'+compCells+
       '<td><strong>'+display+'</strong></td><td>'+r.grade+'</td>'+
       '<td>'+(stat.classAverage!==null?stat.classAverage:"—")+'</td>'+
-      '<td>'+(stat.position?ordinal(stat.position)+(r.provisional?"*":""):"—")+'</td>'+
+      '<td>'+(stat.position?ordinal(stat.position):"—")+'</td>'+
       '<td>'+escapeHtml(r.remark||"")+'</td></tr>';
   }).join("");
 
@@ -143,7 +143,6 @@ function generateReportCardHtml(studentId, classArmId, sessionId, termId, forced
         (template.showPhoto ? photoHtml : '')+
       '</div>'+
       '<div class="rc-title">TERMINAL REPORT — '+escapeHtml(template.name)+'</div>'+
-      (overall.provisional ? '<div class="rc-provisional" style="margin:6px 0;padding:6px 10px;border:1px solid #b45309;color:#b45309;font-weight:700;text-align:center;font-size:12px">PROVISIONAL RESULT &mdash; * marks are based on the scores entered so far. Not all scores are in yet.</div>' : '')+
       '<div class="rc-info-grid">'+
         '<div><span>Name</span><strong>'+escapeHtml(stu.name)+'</strong></div>'+
         '<div><span>Sex</span><strong>'+escapeHtml(stu.gender||"—")+'</strong></div>'+
@@ -153,8 +152,8 @@ function generateReportCardHtml(studentId, classArmId, sessionId, termId, forced
         '<div><span>Term</span><strong>'+escapeHtml(termName(termId))+'</strong></div>'+
         '<div><span>Session</span><strong>'+escapeHtml(sessionName(sessionId))+'</strong></div>'+
         '<div><span>Next Term Begins</span><strong>'+escapeHtml((term&&term.nextTermStartDate)||"—")+'</strong></div>'+
-        '<div><span>Average</span><strong>'+(overall.average!==null?overall.average+"%"+(overall.provisional?"*":""):"—")+'</strong></div>'+
-        '<div><span>Position</span><strong>'+(myPosRow&&myPosRow.position?ordinal(myPosRow.position)+(overall.provisional?"*":""):"—")+' of '+classOv.students.length+'</strong></div>'+
+        '<div><span>Average</span><strong>'+(overall.average!==null?overall.average+"%":"—")+'</strong></div>'+
+        '<div><span>Position</span><strong>'+(myPosRow&&myPosRow.position?ordinal(myPosRow.position):"—")+' of '+classOv.students.length+'</strong></div>'+
       '</div>'+
       '<div class="table-wrap"><table class="rc-subject-table"><thead><tr><th>Subject</th>'+compHeaderCols+'<th>Total</th><th>Grade</th><th>Class Avg</th><th>Position</th><th>Remark</th></tr></thead><tbody>'+subjectRows+'</tbody></table></div>'+
       '<div class="rc-legend">'+gradingLegend+'</div>'+

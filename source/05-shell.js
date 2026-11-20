@@ -53,6 +53,7 @@ function ICONS(name){
 }
 
 function renderApp(){
+  try { if (state && state.school && state.school.name) document.title = state.school.name + " - Results"; } catch (e) { /* title is cosmetic */ }
   var root = el("app-root");
   if (!state.currentUser || state.view==="login"){
     root.innerHTML = renderLoginView();

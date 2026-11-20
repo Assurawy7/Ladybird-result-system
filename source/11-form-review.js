@@ -65,8 +65,8 @@ function renderFormReviewView(){
     var photoHtml = stu.photo ? '<img src="'+stu.photo+'" class="avatar-photo avatar-xs"/>' : '<div class="avatar-photo avatar-xs avatar-fallback">'+escapeHtml(stu.name[0])+'</div>';
     return '<tr>'+
       '<td class="sticky-col">'+photoHtml+' '+escapeHtml(stu.name)+'</td>'+
-      '<td>'+(row.overall.average!==null?row.overall.average+(row.overall.provisional?'*':''):'<span class="muted">—</span>')+'</td>'+
-      '<td>'+(row.position?row.position+(row.overall.provisional?'*':''):'—')+'</td>'+
+      '<td>'+(row.overall.average!==null?row.overall.average:'<span class="muted">—</span>')+'</td>'+
+      '<td>'+(row.position||'—')+'</td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="openCommentEditor(\''+stu.id+'\')">'+(c.formTeacherComment?'Edit Comment':'Add Comment')+'</button></td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="openFeesEditor(\''+stu.id+'\')">'+(c.nextFees||c.examFee?'Edit Fees':'Set Fees')+'</button></td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="openDomainEditor(\''+stu.id+'\')">Skills/Behaviour</button></td>'+

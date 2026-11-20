@@ -81,7 +81,7 @@ function renderAdminDashboard(){
       '<div class="table-wrap"><table class="data-table"><thead><tr><th>Class</th><th>Students</th><th>Subjects Done</th><th>Class Avg</th><th></th></tr></thead><tbody>'+classArmRows+'</tbody></table></div>'+
     '</div>'+
     '<div class="card">'+
-      '<div class="card-header"><h3>Grade Distribution (this term, includes provisional)</h3></div>'+
+      '<div class="card-header"><h3>Grade Distribution (this term)</h3></div>'+
       '<div class="bar-chart">'+gradeBars+'</div>'+
     '</div>'+
   '</div>';
