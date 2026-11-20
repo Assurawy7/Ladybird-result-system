@@ -7,3 +7,6 @@ service-account*.json
 
 # state backups written by scripts/repair-media-links.js (contain pupil data)
 state-backup-*.json
+
+# ready-to-upload school zips made by scripts/package-school.js
+dist/

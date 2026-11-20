@@ -34,3 +34,18 @@ reopened (Android sometimes needs the app removed and installed again).
 A school with none of these settings (such as the first school) keeps the
 Ladybird name and icon. Never set these on your own computer: they rewrite
 `manifest.json`, `index.html` and the `icons` folder.
+
+## If the school's Netlify site is updated by UPLOADING A ZIP
+Netlify does not run the build for uploaded zips, so the settings in step 3
+above have no effect. Use the packager instead - it bakes the name, colour and
+icons into a ready-to-upload zip and never touches your own files:
+
+    node scripts/package-school.js --brand greenfield \
+         --name "Greenfield Academy Results" --short "Greenfield" --color "#0B6B3A"
+
+It creates `dist/greenfield/greenfield-upload.zip`. In the Explorer, right-click
+that file, choose Download, then upload it on that school's Netlify site
+(Deploys, drag and drop). Secrets (.env files), node_modules, .git, backups and
+other zips are never packed. After ANY update to the code, run the packager
+again and upload the new zip. (A school whose site is connected to GitHub does
+not need this - use the settings in step 3.)
