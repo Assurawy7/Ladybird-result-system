@@ -32,4 +32,6 @@ t("R9 the card is sized in mm to A4 (210 x 296.6) and printed with @page A4, mar
 t("R10 print hides the app with display:none (visibility:hidden left blank pages)", /body > \*:not\(#print-area\)\{display:none !important;\}/.test(css) && !/body \*\{visibility:hidden/.test(css));
 t("R11 backgrounds are forced to print (table headers were white-on-white)", /print-color-adjust:exact/.test(css));
 t("R12 the fit engine is shipped and used by preview and print", /function fitReportCards/.test(fs.readFileSync(R+"/app.js","utf8")) && /fitInPrintArea\(printArea\)/.test(fs.readFileSync(R+"/app.js","utf8")));
+const appjs=fs.readFileSync(R+"/app.js","utf8");
+t("R13 Settings has a Principal's Signature panel that can create the slot when it is missing", /function ensurePrincipalSlot/.test(appjs) && /uploadPrincipalSignature\(\)/.test(appjs) && /function clearSignatureImage/.test(appjs) && /function renameSignature/.test(appjs));
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail?1:0);

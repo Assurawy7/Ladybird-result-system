@@ -326,7 +326,7 @@ a{color:var(--teal-soft);}
   background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(1.55em - 1px),var(--rc-line) calc(1.55em - 1px),var(--rc-line) 1.55em);}
 .rc-sign{position:relative;margin-top:auto;text-align:center;}
 .rc-sign-art{position:relative;height:3em;display:flex;align-items:flex-end;justify-content:center;}
-.sig-img{display:block;max-height:3em;max-width:70%;object-fit:contain;}
+.sig-img{display:block;max-height:3em;max-width:70%;object-fit:contain;mix-blend-mode:multiply;}
 .sig-line{height:0;}
 .rc-stamp{position:absolute;right:0;bottom:-.15em;height:4.4em;width:auto;max-width:34%;object-fit:contain;opacity:.88;mix-blend-mode:multiply;}
 .rc-sign-line{margin:0 10%;border-top:1.2px solid var(--rc-ink);}
