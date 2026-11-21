@@ -630,8 +630,8 @@ function toast(msg, kind){
   }
   var t = document.createElement("div");
   t.textContent = msg;
-  var bg = kind==="error" ? "#8E2A3B" : (kind==="warn" ? "#B8860B" : "#0F4C3A");
-  t.style.cssText = "background:"+bg+";color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2);opacity:0;transition:opacity .2s;max-width:88vw;text-align:center;";
+  var bg = kind==="error" ? "linear-gradient(135deg,#C0304A,#8E1F33)" : (kind==="warn" ? "linear-gradient(135deg,#D19A2A,#A66A00)" : "linear-gradient(135deg,#12906A,#0A5F46)");
+  t.style.cssText = "background:"+bg+";color:#fff;padding:12px 22px;border-radius:14px;font-size:13px;font-weight:700;letter-spacing:.01em;border:1px solid rgba(255,255,255,.2);box-shadow:0 1px 0 rgba(255,255,255,.28) inset,0 18px 38px -12px rgba(8,26,51,.55);opacity:0;transition:opacity .2s;max-width:88vw;text-align:center;";
   host.appendChild(t);
   requestAnimationFrame(function(){ t.style.opacity = "1"; });
   setTimeout(function(){ t.style.opacity="0"; setTimeout(function(){ t.remove(); }, 250); }, 2600);
