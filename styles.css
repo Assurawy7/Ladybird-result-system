@@ -201,100 +201,446 @@ a{color:var(--teal-soft);}
 .score-input{width:64px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;text-align:center;}
 .score-input:disabled{background:#F4F6F9;color:var(--text-muted);}
 
-/* ---------- Report card / print ---------- */
-.report-preview-body{background:#dde3ea;padding:20px 0;}
+/* ---------- Report card / print ----------
+   Every report card is ONE fixed A4 portrait sheet (210 x 296.6 mm; the 0.4 mm
+   safety margin stops browsers pushing a blank page after it). Everything
+   inside is sized in em from --fs, so the fit engine in source/13-reports.js
+   can scale the type to the subject count. The ten visual themes below only
+   change variables and decoration - never the page size or structure. */
+.report-preview-body{background:#cdd4de;padding:18px 12px;display:flex;justify-content:center;overflow-x:hidden;}
+.rc-preview-stage{position:relative;flex:none;overflow:hidden;background:#fff;box-shadow:0 8px 30px rgba(11,37,69,.30);}
+.rc-preview-stage .report-card{margin:0;}
+
 .report-card{
-  --rc-primary:#0B2545; --rc-accent:#C9A24B; --rc-heading-font:Georgia,'Times New Roman',serif;
-  --rc-body-font:Arial,Helvetica,sans-serif; --rc-border-width:3px; --rc-border-style:double;
-  --rc-watermark-opacity:.07;
-  position:relative; background:#fff; max-width:800px; margin:0 auto 24px; font-family:var(--rc-body-font); color:#1B2430;
+  --fs:11px; --sp:1; --rg:0px; --cg:0px; --z:1;
+  --rc-primary:#0B2545; --rc-primary-2:#13315C; --rc-accent:#B8902F; --rc-accent-d:#8A6A1B;
+  --rc-ink:#1B2430; --rc-muted:#566170; --rc-line:#C3CBD8;
+  --rc-tint:rgba(11,37,69,.045); --rc-tint-2:rgba(11,37,69,.10);
+  --rc-heading-font:Georgia,'Times New Roman',serif;
+  --rc-body-font:'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --rc-inset:6mm; --rc-pad:5mm; --rc-bw:3px; --rc-bs:solid; --rc-wm:.07; --rc-cs:3.4mm;
+  position:relative; box-sizing:border-box; width:210mm; height:296.6mm; margin:0 auto; overflow:hidden;
+  background:#fff; color:var(--rc-ink); font-family:var(--rc-body-font); font-size:var(--fs); line-height:1.3;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact; text-align:left;
 }
-.rc-watermark{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:var(--rc-watermark-opacity); pointer-events:none; z-index:0; overflow:hidden;}
-.rc-watermark img{width:55%; object-fit:contain;}
-.rc-frame{position:relative; z-index:1; border:var(--rc-border-width) var(--rc-border-style) var(--rc-primary); padding:22px 24px; margin:8px;}
-.rc-header{display:flex; align-items:flex-start; gap:14px; border-bottom:2.5px solid var(--rc-primary); padding-bottom:12px;}
-.rc-logo{width:58px; height:58px; object-fit:contain;}
-.rc-logo-fallback{background:var(--rc-primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px; border-radius:8px;}
-.rc-school-info{flex:1;}
-.rc-school-info h1{font-family:var(--rc-heading-font); font-size:19px; color:var(--rc-primary); margin:0; letter-spacing:.02em;}
-.rc-school-info p{font-size:11px; margin:1px 0; color:#3A4452;}
-.rc-motto{font-style:italic; color:var(--rc-accent) !important; font-weight:600;}
-.rc-photo{width:66px; height:66px; border-radius:6px; object-fit:cover; border:2px solid var(--rc-primary);}
-.rc-photo-fallback{background:var(--rc-primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; border-radius:6px;}
-.rc-title{text-align:center; font-family:var(--rc-heading-font); font-weight:700; color:var(--rc-primary); margin:14px 0 10px; letter-spacing:.06em; font-size:15px; text-transform:uppercase;}
-.rc-info-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:8px 12px; margin-bottom:14px; font-size:11.5px; border:1px solid #CBD3DE; padding:10px; border-radius:4px;}
-.rc-info-grid span{display:block; color:#6B7480; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em;}
-.rc-info-grid strong{color:var(--rc-primary);}
-.rc-subject-table{width:100%; border-collapse:collapse; margin-bottom:10px; font-size:11px;}
-.rc-subject-table th,.rc-subject-table td{border:1px solid #B7C0CC; padding:5px 7px; text-align:center;}
-.rc-subject-table th{background:var(--rc-primary); color:#fff; font-size:10px; text-transform:uppercase; letter-spacing:.02em;}
-.rc-subject-name{text-align:left !important; font-weight:600;}
-.rc-legend{margin-bottom:14px; display:flex; flex-wrap:wrap; gap:6px;}
-.rc-two-col{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;}
-.rc-domain-block h4{font-family:var(--rc-heading-font); font-size:12px; color:var(--rc-primary); margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em;}
-.rc-domain-table{width:100%; border-collapse:collapse; font-size:10.5px;}
-.rc-domain-table th,.rc-domain-table td{border:1px solid #CBD3DE; padding:4px 6px; text-align:center;}
-.rc-domain-table th{background:#F4F6F9; color:var(--rc-primary); font-weight:700;}
-.rc-domain-table td:first-child{text-align:left;}
-.rc-attendance{font-size:12px; margin-bottom:14px; padding:8px 10px; background:#F7F9FC; border-radius:4px;}
-.rc-comments div{margin-bottom:10px;}
-.rc-comments span{font-size:10px; text-transform:uppercase; color:#6B7480; font-weight:700; letter-spacing:.02em;}
-.rc-comments p{color:#1B2430; font-size:12px; margin-top:2px; border-bottom:1px dotted #B7C0CC; padding-bottom:6px;}
-.rc-fees{display:flex; gap:18px; font-size:12px; font-weight:700; color:var(--rc-primary); margin-bottom:16px; flex-wrap:wrap;}
-.rc-signatures{display:flex; justify-content:space-between; margin-top:24px;}
-.rc-signatures div{text-align:center; width:200px;}
-.sig-line{border-bottom:1.5px solid #1B2430; height:36px;}
-.rc-signatures span{font-size:10.5px; color:#6B7480;}
-.rc-page-break{page-break-after:always;}
+.report-card *{box-sizing:border-box;}
+.report-card p,.report-card h1{margin:0;}
+.report-card[data-tier="a"]{--fs:12px;}
+.report-card[data-tier="b"]{--fs:11.2px;}
+.report-card[data-tier="c"]{--fs:10.2px;}
+.report-card[data-tier="d"]{--fs:9.2px;}
+.report-card[data-tier="e"]{--fs:8.4px;}
 
-/* ---------- Report card themes (10 selectable visual designs) ---------- */
-.rc-theme-classic-navy{ --rc-primary:#0B2545; --rc-accent:#C9A24B; --rc-heading-font:Georgia,serif; --rc-border-style:double; --rc-border-width:4px; }
-.rc-theme-modern-teal{ --rc-primary:#0F4C3A; --rc-accent:#38B792; --rc-heading-font:'Segoe UI',Arial,sans-serif; --rc-border-style:solid; --rc-border-width:2px; }
-.rc-theme-royal-purple{ --rc-primary:#3B1E63; --rc-accent:#D4AF37; --rc-heading-font:Georgia,serif; --rc-border-style:double; --rc-border-width:4px; --rc-watermark-opacity:.09; }
-.rc-theme-crimson-gold{ --rc-primary:#7A1E2B; --rc-accent:#D4AF37; --rc-heading-font:Georgia,serif; --rc-border-style:solid; --rc-border-width:3px; }
-.rc-theme-corporate-slate{ --rc-primary:#33414F; --rc-accent:#7C93A8; --rc-heading-font:Arial,sans-serif; --rc-border-style:solid; --rc-border-width:1.5px; --rc-watermark-opacity:.05; }
-.rc-theme-elegant-serif{ --rc-primary:#22303F; --rc-accent:#B08D57; --rc-heading-font:'Times New Roman',serif; --rc-border-style:solid; --rc-border-width:1px; }
-.rc-theme-sunburst-orange{ --rc-primary:#C1560C; --rc-accent:#FFB74D; --rc-heading-font:'Comic Sans MS','Segoe UI',sans-serif; --rc-border-style:dashed; --rc-border-width:3px; --rc-watermark-opacity:.1; }
-.rc-theme-forest-green{ --rc-primary:#1E5631; --rc-accent:#8FBF6D; --rc-heading-font:Georgia,serif; --rc-border-style:solid; --rc-border-width:2.5px; }
-.rc-theme-minimal-mono{ --rc-primary:#2A2A2A; --rc-accent:#8A8A8A; --rc-heading-font:Arial,sans-serif; --rc-border-style:solid; --rc-border-width:1px; --rc-watermark-opacity:.04; }
-.rc-theme-double-frame-formal{ --rc-primary:#1B2A4A; --rc-accent:#A9C4EB; --rc-heading-font:Georgia,serif; --rc-border-style:double; --rc-border-width:6px; --rc-watermark-opacity:.08; }
-.rc-theme-sunburst-orange .rc-frame,
-.rc-theme-double-frame-formal .rc-frame{ margin:12px; }
+.rc-watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:var(--rc-wm);pointer-events:none;z-index:0;color:var(--rc-primary);}
+.rc-watermark img{width:56%;max-height:52%;object-fit:contain;}
+.rc-watermark svg{width:50%;height:auto;}
 
+.rc-frame{position:absolute;inset:var(--rc-inset);z-index:1;padding:var(--rc-pad);border:var(--rc-bw) var(--rc-bs) var(--rc-primary);}
+.rc-corner{display:none;position:absolute;width:var(--rc-cs);height:var(--rc-cs);pointer-events:none;}
+.rc-c-tl{top:calc(var(--rc-bw)/-2 - var(--rc-cs)/2);left:calc(var(--rc-bw)/-2 - var(--rc-cs)/2);}
+.rc-c-tr{top:calc(var(--rc-bw)/-2 - var(--rc-cs)/2);right:calc(var(--rc-bw)/-2 - var(--rc-cs)/2);}
+.rc-c-bl{bottom:calc(var(--rc-bw)/-2 - var(--rc-cs)/2);left:calc(var(--rc-bw)/-2 - var(--rc-cs)/2);}
+.rc-c-br{bottom:calc(var(--rc-bw)/-2 - var(--rc-cs)/2);right:calc(var(--rc-bw)/-2 - var(--rc-cs)/2);}
+
+/* the sheet: a flex column; spare height is shared out between sections */
+.rc-sheet{position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:calc(.5em*var(--sp));
+  width:calc(100%/var(--z));height:calc(100%/var(--z));transform:scale(var(--z));transform-origin:0 0;}
+.rc-sheet > *{flex:none;min-width:0;}
+
+/* header */
+.rc-header{display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:1.1em;padding-bottom:.65em;border-bottom:2px solid var(--rc-primary);}
+.rc-logo-wrap,.rc-photo-wrap{display:flex;align-items:center;justify-content:center;min-width:5.2em;}
+.rc-photo-off{min-width:5.2em;}
+.rc-logo{width:5.4em;height:5.4em;object-fit:contain;display:block;}
+.rc-logo-fallback{background:var(--rc-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:2.2em;border-radius:.3em;font-family:var(--rc-heading-font);}
+.rc-photo{width:4.9em;height:5.8em;object-fit:cover;display:block;border:1.5px solid var(--rc-primary);border-radius:.25em;background:#fff;}
+.rc-photo-fallback{background:var(--rc-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:2em;}
+.rc-school-info{text-align:center;}
+.rc-school-info h1{font-family:var(--rc-heading-font);font-size:1.95em;line-height:1.12;letter-spacing:.04em;text-transform:uppercase;color:var(--rc-primary);overflow-wrap:anywhere;}
+.rc-name-l h1,.rc-school-info.rc-name-l h1{font-size:1.6em;}
+.rc-school-info.rc-name-xl h1{font-size:1.3em;}
+.rc-school-info p{margin-top:.18em;font-size:.86em;color:var(--rc-muted);}
+.rc-school-info .rc-motto{font-style:italic;font-weight:600;color:var(--rc-accent-d);}
+
+/* title */
+.rc-title{display:flex;flex-direction:column;align-items:center;gap:.1em;}
+.rc-title-main{font-family:var(--rc-heading-font);font-weight:700;text-transform:uppercase;letter-spacing:.14em;font-size:1.28em;color:var(--rc-primary);}
+.rc-title-sub{font-size:.84em;color:var(--rc-muted);letter-spacing:.05em;}
+
+/* student information */
+.rc-info-grid{display:grid;grid-template-columns:repeat(12,1fr);border-right:1px solid var(--rc-line);border-bottom:1px solid var(--rc-line);background:rgba(255,255,255,.6);}
+.rc-c{padding:.28em .6em .3em;border-top:1px solid var(--rc-line);border-left:1px solid var(--rc-line);min-width:0;}
+.rc-s2{grid-column:span 2;}.rc-s3{grid-column:span 3;}.rc-s4{grid-column:span 4;}.rc-s5{grid-column:span 5;}
+.rc-c span{display:block;font-size:.68em;text-transform:uppercase;letter-spacing:.07em;color:var(--rc-muted);}
+.rc-c strong{display:block;font-size:1.04em;color:var(--rc-ink);overflow-wrap:anywhere;}
+
+/* performance + attendance tiles */
+.rc-summary{display:flex;gap:.7em;}
+.rc-tiles{display:flex;gap:.45em;}
+.rc-tiles-perf{flex:1.35;}.rc-tiles-att{flex:1;}
+.rc-tile{flex:1;min-width:0;text-align:center;border:1px solid var(--rc-line);border-radius:.35em;padding:.32em .25em;background:var(--rc-tint);}
+.rc-tile strong{display:block;font-family:var(--rc-heading-font);font-size:1.4em;line-height:1.1;color:var(--rc-primary);}
+.rc-tile span{display:block;white-space:nowrap;margin-top:.12em;font-size:.68em;text-transform:uppercase;letter-spacing:.07em;color:var(--rc-muted);}
+.rc-tile-hero{background:var(--rc-primary);border-color:var(--rc-primary);}
+.rc-tile-hero strong,.rc-tile-hero span{color:#fff;}
+
+/* results table */
+.rc-results{border:1px solid var(--rc-line);overflow:hidden;background:rgba(255,255,255,.35);}
+.rc-subject-table{width:100%;border-collapse:separate;border-spacing:0;}
+.rc-subject-table th{background:var(--rc-primary);color:#fff;font-size:.78em;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:.5em .35em;border-right:1px solid rgba(255,255,255,.22);white-space:nowrap;line-height:1.15;}
+.rc-subject-table th small{display:block;margin-top:.1em;font-size:.9em;font-weight:400;opacity:.85;letter-spacing:0;text-transform:none;}
+.rc-subject-table th.rc-subject-head{text-align:left;padding-left:.7em;}
+.rc-subject-table td{text-align:center;padding:calc(.28em + var(--rg)) .4em;border-right:1px solid var(--rc-line);border-bottom:1px solid var(--rc-line);font-variant-numeric:tabular-nums;}
+.rc-subject-table th:last-child,.rc-subject-table td:last-child{border-right:0;}
+.rc-subject-table tbody tr:last-child td{border-bottom:0;}
+.rc-subject-table tbody tr:nth-child(even) td{background:var(--rc-tint);}
+.rc-subject-table td.rc-subject-name{text-align:left;font-weight:600;padding-left:.7em;width:34%;overflow-wrap:anywhere;}
+.rc-total strong{font-size:1.06em;}
+.rc-grade{font-weight:700;color:var(--rc-primary);white-space:nowrap;}
+.rc-fail{color:#B3273A !important;}
+.rc-remark{text-align:left !important;font-size:.92em;color:var(--rc-muted);}
+.rc-empty-row{padding:1.2em !important;color:var(--rc-muted);}
+
+/* grading key */
+.rc-key-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.8em;}
+.rc-key-table th{width:5.2em;text-align:left;padding:.14em .45em;font-size:.88em;text-transform:uppercase;letter-spacing:.06em;color:var(--rc-primary);background:var(--rc-tint-2);border:1px solid var(--rc-line);}
+.rc-key-table td{text-align:center;padding:.14em .2em;border:1px solid var(--rc-line);line-height:1.2;overflow-wrap:anywhere;}
+.rc-key-grade td{font-weight:800;color:var(--rc-primary);background:var(--rc-tint);}
+
+/* skills / behaviours */
+.rc-two-col{display:grid;grid-template-columns:1fr 1fr;gap:.9em;align-items:start;}
+.rc-one-col{grid-template-columns:1fr;}
+.rc-domain-table{width:100%;border-collapse:collapse;font-size:.88em;}
+.rc-domain-table th,.rc-domain-table td{border:1px solid var(--rc-line);padding:calc(.16em + var(--rg)*.4) .3em;text-align:center;}
+.rc-domain-table th{background:var(--rc-tint-2);color:var(--rc-primary);font-weight:700;width:2.2em;}
+.rc-domain-table th.rc-domain-title{width:auto;text-align:left;background:var(--rc-primary);color:#fff;text-transform:uppercase;letter-spacing:.07em;font-size:.92em;padding-left:.6em;}
+.rc-domain-table td:first-child{text-align:left;padding-left:.6em;}
+.rc-domain-table td.on{background:var(--rc-tint-2);color:var(--rc-primary);font-weight:800;}
+.rc-rating-key{margin-top:.3em;text-align:center;font-size:.72em;color:var(--rc-muted);}
+
+/* comments + signatures */
+.rc-comments{display:grid;grid-template-columns:1fr 1fr;gap:.9em;align-items:stretch;}
+.rc-comment{display:flex;flex-direction:column;border:1px solid var(--rc-line);border-radius:.35em;padding:.45em .7em .5em;background:rgba(255,255,255,.55);}
+.rc-label{font-size:.7em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--rc-primary);}
+.rc-comment p{flex:1 1 auto;margin:.25em 0 .35em;min-height:calc(3.1em + var(--cg,0px));line-height:1.55;color:var(--rc-ink);overflow-wrap:anywhere;
+  background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(1.55em - 1px),var(--rc-line) calc(1.55em - 1px),var(--rc-line) 1.55em);}
+.rc-sign{position:relative;margin-top:auto;text-align:center;}
+.rc-sign-art{position:relative;height:3em;display:flex;align-items:flex-end;justify-content:center;}
+.sig-img{display:block;max-height:3em;max-width:70%;object-fit:contain;}
+.sig-line{height:0;}
+.rc-stamp{position:absolute;right:0;bottom:-.15em;height:4.4em;width:auto;max-width:34%;object-fit:contain;opacity:.88;mix-blend-mode:multiply;}
+.rc-sign-line{margin:0 10%;border-top:1.2px solid var(--rc-ink);}
+.rc-sign-name{display:block;margin-top:.15em;font-size:.88em;}
+.rc-sign-cap{display:block;font-size:.68em;text-transform:uppercase;letter-spacing:.06em;color:var(--rc-muted);}
+
+/* fees + footer */
+.rc-fees{display:flex;align-items:center;justify-content:space-between;gap:1em;padding:.38em .8em;border:1px solid var(--rc-line);border-radius:.35em;background:var(--rc-tint);}
+.rc-fees-title{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--rc-primary);}
+.rc-fees b{color:var(--rc-primary);}
+.rc-footer{display:flex;justify-content:space-between;gap:1em;padding-top:.3em;border-top:1px solid var(--rc-line);font-size:.68em;color:var(--rc-muted);}
+
+/* compact layout: only switched on by the fit engine for very many subjects */
+.report-card[data-compact]{--sp:.5;}
+.report-card[data-compact] .rc-header{padding-bottom:.4em;column-gap:.8em;}
+.report-card[data-compact] .rc-logo{width:3.8em;height:3.8em;}
+.report-card[data-compact] .rc-photo{width:3.4em;height:4.1em;}
+.report-card[data-compact] .rc-logo-wrap,.report-card[data-compact] .rc-photo-wrap,.report-card[data-compact] .rc-photo-off{min-width:3.8em;}
+.report-card[data-compact] .rc-school-info h1{font-size:1.5em;}
+.report-card[data-compact] .rc-contact,.report-card[data-compact] .rc-title-sub,.report-card[data-compact] .rc-rating-key{display:none;}
+.report-card[data-compact] .rc-title-main{font-size:1.12em;}
+.report-card[data-compact] .rc-c{padding:.14em .5em .16em;}
+.report-card[data-compact] .rc-tile{padding:.16em .2em;}
+.report-card[data-compact] .rc-tile strong{font-size:1.15em;}
+.report-card[data-compact] .rc-subject-table th{padding:.3em .3em;}
+.report-card[data-compact] .rc-subject-table td{padding-top:.18em;padding-bottom:.18em;}
+.report-card[data-compact] .rc-comment{padding:.3em .6em .35em;}
+.report-card[data-compact] .rc-comment p{min-height:calc(2.4em + var(--cg,0px));line-height:1.4;background-image:none;}
+.report-card[data-compact] .rc-sign-art,.report-card[data-compact] .sig-img{height:2em;max-height:2em;}
+.report-card[data-compact] .rc-stamp{height:3em;}
+.report-card[data-compact] .rc-fees{padding:.2em .7em;}
+
+/* ---------- printing: isolate the cards, one A4 sheet each ---------- */
 #print-area{display:none;}
+/* measured off-screen at the exact print width (see fitInPrintArea) */
+#print-area.rc-measuring{display:block;position:fixed;left:-400mm;top:0;width:210mm;visibility:hidden;pointer-events:none;}
 @media print{
-  @page{ size:A4; margin:8mm; }
-  body *{visibility:hidden;}
-  #print-area, #print-area *{visibility:visible;}
-  #print-area{display:block;position:absolute;left:0;top:0;width:100%;}
-  .rc-page-break{page-break-after:always;}
-
-  /* Fit each report card onto a single A4 sheet: tighter type/spacing than
-     the on-screen preview (which stays roomier for readability). */
-  .report-card{ max-width:194mm; font-size:10px; page-break-inside:avoid; margin:0 auto; }
-  .rc-frame{ padding:10mm 8mm; margin:0; }
-  .rc-header{ padding-bottom:6px; gap:10px; }
-  .rc-logo{ width:44px; height:44px; }
-  .rc-photo,.rc-photo-fallback{ width:52px; height:52px; }
-  .rc-school-info h1{ font-size:15px; }
-  .rc-school-info p{ font-size:9px; }
-  .rc-title{ font-size:12px; margin:8px 0 6px; }
-  .rc-info-grid{ gap:4px 8px; padding:6px; margin-bottom:8px; font-size:9.5px; }
-  .rc-info-grid span{ font-size:8px; }
-  .rc-subject-table{ font-size:9px; margin-bottom:6px; }
-  .rc-subject-table th,.rc-subject-table td{ padding:2.5px 4px; }
-  .rc-legend{ margin-bottom:8px; gap:3px; }
-  .legend-chip{ font-size:8px; padding:1.5px 5px; }
-  .rc-two-col{ gap:10px; margin-bottom:8px; }
-  .rc-domain-table{ font-size:8.5px; }
-  .rc-domain-table th,.rc-domain-table td{ padding:2px 4px; }
-  .rc-attendance{ font-size:9.5px; padding:5px 7px; margin-bottom:8px; }
-  .rc-comments p{ font-size:9.5px; padding-bottom:3px; }
-  .rc-comments span{ font-size:8px; }
-  .rc-fees{ font-size:9.5px; margin-bottom:8px; gap:12px; }
-  .rc-signatures{ margin-top:14px; }
-  .sig-line{ height:24px; }
+  @page{size:A4 portrait;margin:0;}
+  html,body{margin:0 !important;padding:0 !important;background:#fff !important;height:auto !important;min-height:0 !important;overflow:visible !important;}
+  /* display:none (not visibility:hidden) so the hidden app takes up no pages */
+  body > *:not(#print-area){display:none !important;}
+  #print-area{display:block !important;position:static !important;width:210mm;margin:0;padding:0;}
+  #print-area .report-card{margin:0;box-shadow:none;transform:none;break-inside:avoid;page-break-inside:avoid;}
+  #print-area .report-card + .report-card{break-before:page;page-break-before:always;}
+  .report-card,.report-card *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 }
+
+/* ==========================================================================
+   Report card themes - ten distinct identities on one shared structure
+   ========================================================================== */
+
+/* 1. CLASSIC NAVY - traditional double-rule frame, gold corner studs, centred letterhead */
+.rc-theme-classic-navy{--rc-bw:4px;--rc-bs:double;--rc-wm:.07;}
+.rc-theme-classic-navy .rc-frame{box-shadow:inset 0 0 0 1.2mm #fff,inset 0 0 0 calc(1.2mm + 1px) var(--rc-accent);}
+.rc-theme-classic-navy .rc-corner{display:block;background:var(--rc-accent);outline:1.2px solid var(--rc-primary);}
+.rc-theme-classic-navy .rc-header{border-bottom:3px double var(--rc-primary);}
+.rc-theme-classic-navy .rc-title-main{display:flex;align-items:center;gap:.8em;}
+.rc-theme-classic-navy .rc-title-main::before,.rc-theme-classic-navy .rc-title-main::after{content:"";width:5em;height:1px;background:linear-gradient(90deg,transparent,var(--rc-accent));}
+.rc-theme-classic-navy .rc-title-main::after{background:linear-gradient(270deg,transparent,var(--rc-accent));}
+.rc-theme-classic-navy .rc-subject-table th{border-bottom:2px solid var(--rc-accent);}
+.rc-theme-classic-navy .rc-tile{border-top:2px solid var(--rc-accent);}
+.rc-theme-classic-navy .rc-tile-hero{border-top-color:var(--rc-accent);}
+.rc-theme-classic-navy .rc-photo,.rc-theme-classic-navy .rc-photo-fallback{border:2px solid var(--rc-primary);outline:1px solid var(--rc-accent);outline-offset:1.5px;}
+
+/* 2. MODERN TEAL - clean, rounded, full-bleed teal header band */
+.rc-theme-modern-teal{
+  --rc-primary:#0F4C3A;--rc-primary-2:#157A5A;--rc-accent:#2FB28A;--rc-accent-d:#0F7F60;
+  --rc-tint:rgba(47,178,138,.08);--rc-tint-2:rgba(47,178,138,.2);--rc-line:#CBE2D9;
+  --rc-heading-font:'Segoe UI',Calibri,Arial,sans-serif;--rc-bw:1.5px;--rc-bs:solid;--rc-wm:.06;
+}
+.rc-theme-modern-teal .rc-frame{border-radius:3mm;overflow:hidden;}
+.rc-theme-modern-teal .rc-header{margin:calc(-1*var(--rc-pad)) calc(-1*var(--rc-pad)) 0;padding:1em var(--rc-pad) .9em;background:linear-gradient(100deg,var(--rc-primary),var(--rc-primary-2));border-bottom:.38em solid var(--rc-accent);}
+.rc-theme-modern-teal .rc-school-info{text-align:left;}
+.rc-theme-modern-teal .rc-school-info h1{color:#fff;letter-spacing:.03em;font-weight:800;}
+.rc-theme-modern-teal .rc-school-info p{color:rgba(255,255,255,.86);}
+.rc-theme-modern-teal .rc-school-info .rc-motto{color:#B9F2DE;}
+.rc-theme-modern-teal .rc-logo{background:#fff;border-radius:50%;padding:.3em;}
+.rc-theme-modern-teal .rc-logo-fallback{background:#fff;color:var(--rc-primary);}
+.rc-theme-modern-teal .rc-photo,.rc-theme-modern-teal .rc-photo-fallback{border:2px solid #fff;border-radius:.45em;}
+.rc-theme-modern-teal .rc-title{flex-direction:row;justify-content:space-between;align-items:center;}
+.rc-theme-modern-teal .rc-title-main{background:var(--rc-tint-2);padding:.25em 1em;border-radius:2em;letter-spacing:.09em;font-size:1.15em;}
+.rc-theme-modern-teal .rc-info-grid{border:0;gap:.35em;background:none;}
+.rc-theme-modern-teal .rc-c{border:0;background:var(--rc-tint);border-radius:.4em;}
+.rc-theme-modern-teal .rc-results{border-radius:.55em;border-color:var(--rc-accent);}
+.rc-theme-modern-teal .rc-subject-table td{border-right:0;}
+.rc-theme-modern-teal .rc-subject-table th{border-right:0;}
+.rc-theme-modern-teal .rc-tile{border:0;border-radius:.55em;}
+.rc-theme-modern-teal .rc-tile strong{color:var(--rc-primary-2);}
+.rc-theme-modern-teal .rc-tile-hero strong{color:#fff;}
+.rc-theme-modern-teal .rc-comment,.rc-theme-modern-teal .rc-fees{border-radius:.55em;}
+.rc-theme-modern-teal .rc-domain-table th.rc-domain-title{border-radius:.4em 0 0 0;}
+
+/* 3. ROYAL PURPLE - gradient crown header, gold ribbon title, jewel corners */
+.rc-theme-royal-purple{
+  --rc-primary:#3B1E63;--rc-primary-2:#5A2D91;--rc-accent:#D4AF37;--rc-accent-d:#8F6F0E;
+  --rc-tint:rgba(90,45,145,.06);--rc-tint-2:rgba(90,45,145,.14);--rc-line:#D5C9E6;--rc-bw:3px;--rc-bs:double;--rc-wm:.08;--rc-cs:3.2mm;
+}
+.rc-theme-royal-purple .rc-frame{box-shadow:inset 0 0 0 1.4mm #fff,inset 0 0 0 calc(1.4mm + 1.2px) var(--rc-accent);}
+.rc-theme-royal-purple .rc-corner{display:block;background:var(--rc-accent);transform:rotate(45deg);outline:1.2px solid var(--rc-primary);}
+.rc-theme-royal-purple .rc-header{margin:calc(-1*var(--rc-pad)) calc(-1*var(--rc-pad)) 0;padding:1em var(--rc-pad) .85em;background:linear-gradient(120deg,#2A1050 0%,#5A2D91 70%,#6E3FAA 100%);border-bottom:3px solid var(--rc-accent);}
+.rc-theme-royal-purple .rc-school-info h1{color:#fff;letter-spacing:.07em;}
+.rc-theme-royal-purple .rc-school-info p{color:rgba(255,255,255,.85);}
+.rc-theme-royal-purple .rc-school-info .rc-motto{color:#F0D77C;}
+.rc-theme-royal-purple .rc-logo{background:#fff;border-radius:50%;padding:.25em;border:2px solid var(--rc-accent);}
+.rc-theme-royal-purple .rc-logo-fallback{background:#fff;color:var(--rc-primary);}
+.rc-theme-royal-purple .rc-photo,.rc-theme-royal-purple .rc-photo-fallback{border:2px solid var(--rc-accent);}
+.rc-theme-royal-purple .rc-title{margin-top:.2em;}
+.rc-theme-royal-purple .rc-title-main{background:var(--rc-primary);color:var(--rc-accent);padding:.32em 2.6em;clip-path:polygon(0 0,100% 0,97% 50%,100% 100%,0 100%,3% 50%);letter-spacing:.18em;}
+.rc-theme-royal-purple .rc-subject-table th{background:linear-gradient(180deg,var(--rc-primary-2),var(--rc-primary));border-bottom:2px solid var(--rc-accent);}
+.rc-theme-royal-purple .rc-tile{border-color:var(--rc-accent);}
+.rc-theme-royal-purple .rc-tile-hero{background:linear-gradient(135deg,var(--rc-primary),var(--rc-primary-2));}
+.rc-theme-royal-purple .rc-tile-hero strong{color:var(--rc-accent);}
+.rc-theme-royal-purple .rc-domain-table th.rc-domain-title{background:linear-gradient(90deg,var(--rc-primary),var(--rc-primary-2));}
+.rc-theme-royal-purple .rc-info-grid{border-color:var(--rc-accent);}
+
+/* 4. CRIMSON & GOLD - bold crimson spine down the left edge, left-aligned letterhead */
+.rc-theme-crimson-gold{
+  --rc-primary:#7A1E2B;--rc-primary-2:#9B2A3A;--rc-accent:#C9A227;--rc-accent-d:#8F7414;
+  --rc-tint:rgba(122,30,43,.05);--rc-tint-2:rgba(122,30,43,.11);--rc-line:#E1CACD;--rc-bw:1.5px;--rc-bs:solid;--rc-wm:.065;
+}
+.rc-theme-crimson-gold .rc-frame{padding-left:calc(var(--rc-pad) + 8.5mm);
+  background:linear-gradient(90deg,var(--rc-primary) 0,var(--rc-primary) 7.2mm,var(--rc-accent) 7.2mm,var(--rc-accent) 8mm,transparent 8mm);}
+.rc-theme-crimson-gold .rc-frame::after{content:"TERMINAL REPORT CARD";position:absolute;left:0;top:0;bottom:0;width:7.2mm;display:flex;align-items:center;justify-content:center;
+  writing-mode:vertical-rl;transform:rotate(180deg);color:#fff;font-size:.78em;font-weight:700;letter-spacing:.55em;}
+.rc-theme-crimson-gold .rc-header{border-bottom:3px solid var(--rc-primary);box-shadow:0 2px 0 var(--rc-accent);padding-bottom:.7em;margin-bottom:2px;}
+.rc-theme-crimson-gold .rc-school-info{text-align:left;}
+.rc-theme-crimson-gold .rc-school-info h1{letter-spacing:.03em;}
+.rc-theme-crimson-gold .rc-title{align-items:flex-start;flex-direction:row;justify-content:space-between;align-items:center;}
+.rc-theme-crimson-gold .rc-title-main{border-left:.5em solid var(--rc-accent);padding-left:.6em;letter-spacing:.1em;}
+.rc-theme-crimson-gold .rc-subject-table th{border-bottom:2px solid var(--rc-accent);}
+.rc-theme-crimson-gold .rc-tile{border-left:.32em solid var(--rc-primary);border-radius:.2em;text-align:left;padding-left:.7em;}
+.rc-theme-crimson-gold .rc-tile-hero{border-left-color:var(--rc-accent);}
+.rc-theme-crimson-gold .rc-comment{border-top:.25em solid var(--rc-primary);border-radius:.2em;}
+.rc-theme-crimson-gold .rc-domain-table th.rc-domain-title{border-bottom:2px solid var(--rc-accent);}
+.rc-theme-crimson-gold .rc-photo,.rc-theme-crimson-gold .rc-photo-fallback{border:2px solid var(--rc-primary);box-shadow:3px 3px 0 var(--rc-accent);}
+
+/* 5. CORPORATE SLATE - restrained, form-like, thick top bar, shaded label strips */
+.rc-theme-corporate-slate{
+  --rc-primary:#33414F;--rc-primary-2:#4A5C6E;--rc-accent:#7C93A8;--rc-accent-d:#566B80;
+  --rc-tint:rgba(51,65,79,.045);--rc-tint-2:rgba(51,65,79,.11);--rc-line:#B9C3CE;
+  --rc-heading-font:Arial,Helvetica,sans-serif;--rc-body-font:Arial,Helvetica,'Liberation Sans',sans-serif;--rc-bw:1px;--rc-bs:solid;--rc-wm:.05;
+}
+.rc-theme-corporate-slate .rc-frame{border-top:3.2mm solid var(--rc-primary);box-shadow:0 -1.2px 0 var(--rc-primary);}
+.rc-theme-corporate-slate .rc-header{border-bottom:1px solid var(--rc-primary);padding-top:.2em;}
+.rc-theme-corporate-slate .rc-school-info{text-align:left;}
+.rc-theme-corporate-slate .rc-school-info h1{font-weight:800;font-size:1.78em;letter-spacing:.02em;}
+.rc-theme-corporate-slate .rc-logo{border-radius:0;}
+.rc-theme-corporate-slate .rc-logo-fallback{border-radius:.15em;}
+.rc-theme-corporate-slate .rc-photo,.rc-theme-corporate-slate .rc-photo-fallback{border-radius:0;border:1px solid var(--rc-primary);}
+.rc-theme-corporate-slate .rc-title{flex-direction:row;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--rc-line);padding-bottom:.25em;}
+.rc-theme-corporate-slate .rc-title-main{font-size:1.1em;letter-spacing:.12em;}
+.rc-theme-corporate-slate .rc-info-grid{border-color:var(--rc-primary);}
+.rc-theme-corporate-slate .rc-c{border-color:var(--rc-primary);border-color:var(--rc-line);padding-top:0;}
+.rc-theme-corporate-slate .rc-c span{background:var(--rc-tint-2);margin:0 -.6em .2em;padding:.12em .6em;}
+.rc-theme-corporate-slate .rc-tile{border-radius:0;border-color:var(--rc-primary);}
+.rc-theme-corporate-slate .rc-tile strong{font-family:Arial,sans-serif;}
+.rc-theme-corporate-slate .rc-results{border-color:var(--rc-primary);}
+.rc-theme-corporate-slate .rc-subject-table td{border-color:var(--rc-line);}
+.rc-theme-corporate-slate .rc-comment,.rc-theme-corporate-slate .rc-fees{border-radius:0;}
+
+/* 6. ELEGANT SERIF - stationery look: fine gilt double hairline, ruled table, no heavy fills */
+.rc-theme-elegant-serif{
+  --rc-primary:#22303F;--rc-primary-2:#2F4258;--rc-accent:#B08D57;--rc-accent-d:#8C6B3A;
+  --rc-tint:rgba(176,141,87,.08);--rc-tint-2:rgba(176,141,87,.18);--rc-line:#DDD3C2;
+  --rc-heading-font:'Times New Roman',Georgia,serif;--rc-body-font:'Palatino Linotype','Book Antiqua',Palatino,Georgia,serif;
+  --rc-inset:8mm;--rc-bw:1px;--rc-bs:solid;--rc-wm:.055;
+}
+.rc-theme-elegant-serif .rc-frame{border-color:var(--rc-accent);box-shadow:0 0 0 1.5mm #fff,0 0 0 calc(1.5mm + 1px) var(--rc-accent);}
+.rc-theme-elegant-serif .rc-header{border-bottom:1px solid var(--rc-accent);}
+.rc-theme-elegant-serif .rc-school-info h1{font-weight:600;letter-spacing:.14em;font-size:1.8em;}
+.rc-theme-elegant-serif .rc-school-info .rc-motto{letter-spacing:.04em;}
+.rc-theme-elegant-serif .rc-photo,.rc-theme-elegant-serif .rc-photo-fallback{border:1px solid var(--rc-accent);padding:2px;background:#fff;border-radius:0;}
+.rc-theme-elegant-serif .rc-photo-fallback{background:var(--rc-primary);background-clip:content-box;}
+.rc-theme-elegant-serif .rc-title-main{display:flex;align-items:center;gap:.9em;font-weight:400;font-style:italic;letter-spacing:.12em;text-transform:none;font-size:1.45em;}
+.rc-theme-elegant-serif .rc-title-main::before,.rc-theme-elegant-serif .rc-title-main::after{content:"";width:.45em;height:.45em;background:var(--rc-accent);transform:rotate(45deg);}
+.rc-theme-elegant-serif .rc-info-grid{border:0;background:none;}
+.rc-theme-elegant-serif .rc-c{border:0;border-bottom:1px dotted var(--rc-accent);padding-left:.2em;}
+.rc-theme-elegant-serif .rc-c span{font-variant:small-caps;text-transform:none;letter-spacing:.08em;font-size:.82em;}
+.rc-theme-elegant-serif .rc-tile{background:none;border:0;border-left:1px solid var(--rc-line);border-radius:0;}
+.rc-theme-elegant-serif .rc-tile:first-child{border-left:0;}
+.rc-theme-elegant-serif .rc-tile-hero{background:none;border-color:var(--rc-line);}
+.rc-theme-elegant-serif .rc-tile-hero strong{color:var(--rc-accent-d);}
+.rc-theme-elegant-serif .rc-tile-hero span{color:var(--rc-muted);}
+.rc-theme-elegant-serif .rc-results{border:0;border-top:1.5px solid var(--rc-primary);border-bottom:1.5px solid var(--rc-primary);}
+.rc-theme-elegant-serif .rc-subject-table th{background:none;color:var(--rc-primary);border-right:0;border-bottom:1px solid var(--rc-primary);letter-spacing:.1em;}
+.rc-theme-elegant-serif .rc-subject-table td{border-right:0;}
+.rc-theme-elegant-serif .rc-subject-table tbody tr:nth-child(even) td{background:none;}
+.rc-theme-elegant-serif .rc-key-table th{background:none;}
+.rc-theme-elegant-serif .rc-key-grade td{background:none;}
+.rc-theme-elegant-serif .rc-domain-table th{background:none;}
+.rc-theme-elegant-serif .rc-domain-table th.rc-domain-title{background:none;color:var(--rc-primary);border-bottom:1.5px solid var(--rc-primary);border-top:1.5px solid var(--rc-primary);}
+.rc-theme-elegant-serif .rc-domain-table td.on{background:none;color:var(--rc-accent-d);}
+.rc-theme-elegant-serif .rc-comment{border:0;border-top:1px solid var(--rc-accent);border-radius:0;background:none;padding-left:.2em;padding-right:.2em;}
+.rc-theme-elegant-serif .rc-fees{background:none;border-left:0;border-right:0;border-radius:0;border-color:var(--rc-accent);}
+
+/* 7. SUNBURST ORANGE - playful and child-friendly: rounded frame, cream header, pill title, coloured tiles */
+.rc-theme-sunburst-orange{
+  --rc-primary:#C85A0A;--rc-primary-2:#E07414;--rc-accent:#FFB74D;--rc-accent-d:#B86A00;
+  --rc-tint:rgba(255,183,77,.15);--rc-tint-2:rgba(255,152,0,.24);--rc-line:#F1D2AB;
+  --rc-heading-font:'Trebuchet MS','Segoe UI',Verdana,sans-serif;--rc-body-font:'Trebuchet MS','Segoe UI',Verdana,sans-serif;
+  --rc-bw:3px;--rc-bs:solid;--rc-wm:.09;--rc-inset:6mm;
+}
+.rc-theme-sunburst-orange .rc-frame{border-radius:5mm;}
+.rc-theme-sunburst-orange .rc-frame::before{content:"";position:absolute;inset:1.3mm;border:2px dotted var(--rc-accent);border-radius:3.6mm;pointer-events:none;}
+.rc-theme-sunburst-orange .rc-header{padding:.7em 1em;background:linear-gradient(180deg,#FFF4E1,#FFE6BF);border:2px solid var(--rc-accent);border-radius:1.2em;}
+.rc-theme-sunburst-orange .rc-school-info h1{letter-spacing:.03em;}
+.rc-theme-sunburst-orange .rc-logo{border-radius:50%;background:#fff;padding:.2em;box-shadow:0 0 0 2px var(--rc-accent);}
+.rc-theme-sunburst-orange .rc-logo-fallback{border-radius:50%;}
+.rc-theme-sunburst-orange .rc-photo,.rc-theme-sunburst-orange .rc-photo-fallback{border:3px solid var(--rc-primary);border-radius:1em;}
+.rc-theme-sunburst-orange .rc-title-main{background:var(--rc-primary);color:#fff;padding:.28em 1.6em;border-radius:2em;letter-spacing:.1em;font-size:1.15em;display:flex;align-items:center;gap:.7em;}
+.rc-theme-sunburst-orange .rc-title-main::before,.rc-theme-sunburst-orange .rc-title-main::after{content:"\2605";color:#FFE08A;font-size:.9em;}
+.rc-theme-sunburst-orange .rc-info-grid{border:2px solid var(--rc-accent);border-radius:.8em;overflow:hidden;}
+.rc-theme-sunburst-orange .rc-info-grid .rc-c{border-color:var(--rc-line);}
+.rc-theme-sunburst-orange .rc-tile{border-radius:.9em;border-width:2px;}
+.rc-theme-sunburst-orange .rc-tiles-perf .rc-tile:nth-child(1){background:#FFE9C9;border-color:#FFB74D;}
+.rc-theme-sunburst-orange .rc-tiles-perf .rc-tile:nth-child(2){background:#E4F5E6;border-color:#7CC48A;}
+.rc-theme-sunburst-orange .rc-tiles-perf .rc-tile:nth-child(3){background:var(--rc-primary);border-color:var(--rc-primary);}
+.rc-theme-sunburst-orange .rc-tiles-perf .rc-tile:nth-child(4){background:#E3EEFB;border-color:#8DB6E6;}
+.rc-theme-sunburst-orange .rc-tiles-att .rc-tile{background:#FFF6E6;border-color:var(--rc-accent);}
+.rc-theme-sunburst-orange .rc-results{border:2px solid var(--rc-accent);border-radius:1em;}
+.rc-theme-sunburst-orange .rc-subject-table th{background:var(--rc-primary);}
+.rc-theme-sunburst-orange .rc-subject-table tbody tr:nth-child(even) td{background:#FFF4DF;}
+.rc-theme-sunburst-orange .rc-key-table th,.rc-theme-sunburst-orange .rc-key-grade td{background:#FFEBCB;}
+.rc-theme-sunburst-orange .rc-domain-table{border-radius:.7em;overflow:hidden;}
+.rc-theme-sunburst-orange .rc-comment{border:2px dashed var(--rc-accent);border-radius:1em;}
+.rc-theme-sunburst-orange .rc-fees{border-radius:2em;border:2px solid var(--rc-accent);padding-left:1.2em;padding-right:1.2em;}
+
+/* 8. FOREST GREEN - warm and natural: sage band, leaf ornament, dotted inner frame */
+.rc-theme-forest-green{
+  --rc-primary:#1E5631;--rc-primary-2:#2D7A47;--rc-accent:#8FBF6D;--rc-accent-d:#4F8A2F;
+  --rc-tint:rgba(143,191,109,.13);--rc-tint-2:rgba(111,168,78,.26);--rc-line:#CADBC0;
+  --rc-bw:2.5px;--rc-bs:solid;--rc-wm:.07;
+}
+.rc-theme-forest-green .rc-frame{border-radius:2mm;}
+.rc-theme-forest-green .rc-frame::before{content:"";position:absolute;inset:1.2mm;border:1px dotted var(--rc-accent-d);border-radius:1mm;pointer-events:none;}
+.rc-theme-forest-green .rc-header{position:relative;padding:.7em .8em .85em;background:linear-gradient(90deg,rgba(143,191,109,.34),rgba(143,191,109,.05));border-bottom:2px solid var(--rc-primary);border-radius:.4em .4em 0 0;}
+.rc-theme-forest-green .rc-header::after{content:"";position:absolute;left:50%;bottom:-.55em;width:.9em;height:.9em;margin-left:-.45em;background:var(--rc-accent-d);border-radius:0 100% 0 100%;box-shadow:0 0 0 .25em #fff;}
+.rc-theme-forest-green .rc-logo{border-radius:50%;background:#fff;padding:.2em;box-shadow:0 0 0 2px var(--rc-accent);}
+.rc-theme-forest-green .rc-logo-fallback{border-radius:50%;}
+.rc-theme-forest-green .rc-photo,.rc-theme-forest-green .rc-photo-fallback{border:2px solid var(--rc-primary);border-radius:.6em;}
+.rc-theme-forest-green .rc-title{margin-top:.25em;}
+.rc-theme-forest-green .rc-title-main{border-bottom:2px solid var(--rc-accent);padding:0 1.4em .12em;}
+.rc-theme-forest-green .rc-results{border-radius:.5em;border-color:var(--rc-accent-d);}
+.rc-theme-forest-green .rc-tile{border-left:.32em solid var(--rc-primary-2);border-radius:.45em;}
+.rc-theme-forest-green .rc-tile-hero{border-left-color:var(--rc-accent);}
+.rc-theme-forest-green .rc-comment,.rc-theme-forest-green .rc-fees{border-radius:.5em;border-color:var(--rc-accent);}
+.rc-theme-forest-green .rc-domain-table th.rc-domain-title{border-radius:.4em 0 0 0;}
+
+/* 9. MINIMAL MONO - ink-light black/white, hairlines and wide tracking */
+.rc-theme-minimal-mono{
+  --rc-primary:#1F1F1F;--rc-primary-2:#3A3A3A;--rc-accent:#777;--rc-accent-d:#555;
+  --rc-tint:rgba(0,0,0,.035);--rc-tint-2:rgba(0,0,0,.08);--rc-line:#D0D0D0;--rc-muted:#5E5E5E;
+  --rc-heading-font:'Helvetica Neue',Helvetica,Arial,sans-serif;--rc-body-font:'Helvetica Neue',Helvetica,Arial,'Liberation Sans',sans-serif;
+  --rc-inset:8mm;--rc-bw:1px;--rc-bs:solid;--rc-wm:.04;
+}
+.rc-theme-minimal-mono .rc-header{border-bottom:1.5px solid #111;}
+.rc-theme-minimal-mono .rc-school-info{text-align:left;}
+.rc-theme-minimal-mono .rc-school-info h1{font-size:1.6em;font-weight:700;letter-spacing:.18em;}
+.rc-theme-minimal-mono .rc-school-info .rc-motto{font-style:normal;letter-spacing:.1em;text-transform:uppercase;font-size:.78em;font-weight:500;}
+.rc-theme-minimal-mono .rc-logo{filter:grayscale(1);border-radius:0;}
+.rc-theme-minimal-mono .rc-photo,.rc-theme-minimal-mono .rc-photo-fallback{border-radius:0;border:1px solid #111;filter:grayscale(1);}
+.rc-theme-minimal-mono .rc-title{flex-direction:row;justify-content:space-between;align-items:baseline;}
+.rc-theme-minimal-mono .rc-title-main{font-size:1.05em;font-weight:600;letter-spacing:.3em;}
+.rc-theme-minimal-mono .rc-info-grid{border:0;background:none;}
+.rc-theme-minimal-mono .rc-c{border:0;border-bottom:1px solid var(--rc-line);}
+.rc-theme-minimal-mono .rc-tile{background:none;border:0;border-top:2px solid #111;border-radius:0;text-align:left;padding-left:.1em;}
+.rc-theme-minimal-mono .rc-tile strong{font-family:inherit;font-weight:700;}
+.rc-theme-minimal-mono .rc-tile-hero{background:none;}
+.rc-theme-minimal-mono .rc-tile-hero strong,.rc-theme-minimal-mono .rc-tile-hero span{color:#111;}
+.rc-theme-minimal-mono .rc-results{border:0;}
+.rc-theme-minimal-mono .rc-subject-table th{background:none;color:#111;border-right:0;border-top:1.5px solid #111;border-bottom:1.5px solid #111;letter-spacing:.09em;}
+.rc-theme-minimal-mono .rc-subject-table td{border-right:0;}
+.rc-theme-minimal-mono .rc-subject-table tbody tr:nth-child(even) td{background:none;}
+.rc-theme-minimal-mono .rc-subject-table tbody tr:last-child td{border-bottom:1.5px solid #111;}
+.rc-theme-minimal-mono .rc-key-table th,.rc-theme-minimal-mono .rc-key-grade td{background:none;}
+.rc-theme-minimal-mono .rc-domain-table th{background:none;}
+.rc-theme-minimal-mono .rc-domain-table th.rc-domain-title{background:none;color:#111;border-top:1.5px solid #111;border-bottom:1.5px solid #111;}
+.rc-theme-minimal-mono .rc-domain-table td.on{background:none;color:#111;}
+.rc-theme-minimal-mono .rc-comment{border:0;border-top:1.5px solid #111;border-radius:0;background:none;padding-left:0;padding-right:0;}
+.rc-theme-minimal-mono .rc-fees{background:none;border-radius:0;border-left:0;border-right:0;}
+.rc-theme-minimal-mono .rc-corner{display:block;--rc-cs:3mm;border:0;}
+.rc-theme-minimal-mono .rc-c-tl,.rc-theme-minimal-mono .rc-c-tr,.rc-theme-minimal-mono .rc-c-bl,.rc-theme-minimal-mono .rc-c-br{background:#111;width:1.6mm;height:1.6mm;}
+
+/* 10. DOUBLE FRAME FORMAL - triple-line frame, crest-centred letterhead, rules either side of the title */
+.rc-theme-double-frame-formal{
+  --rc-primary:#1B2A4A;--rc-primary-2:#2A3F6B;--rc-accent:#8FB0E0;--rc-accent-d:#456A9E;
+  --rc-tint:rgba(27,42,74,.05);--rc-tint-2:rgba(143,176,224,.32);--rc-line:#C2CDE0;
+  --rc-inset:9mm;--rc-bw:2.4px;--rc-bs:solid;--rc-wm:.08;--rc-cs:2.6mm;
+}
+.rc-theme-double-frame-formal .rc-frame{box-shadow:inset 0 0 0 1.4mm #fff,inset 0 0 0 calc(1.4mm + 1px) var(--rc-primary),0 0 0 1.4mm #fff,0 0 0 calc(1.4mm + 2.4px) var(--rc-primary);}
+.rc-theme-double-frame-formal .rc-corner{display:block;background:var(--rc-accent);border:1px solid var(--rc-primary);}
+.rc-theme-double-frame-formal .rc-header{grid-template-columns:1fr auto 1fr;grid-template-areas:". logo photo" "info info info";row-gap:.35em;border-bottom:0;padding-bottom:.55em;}
+.rc-theme-double-frame-formal .rc-header::after{content:"";grid-column:1/-1;height:5px;border-top:1px solid var(--rc-primary);border-bottom:2px solid var(--rc-primary);}
+.rc-theme-double-frame-formal .rc-logo-wrap{grid-area:logo;}
+.rc-theme-double-frame-formal .rc-photo-wrap{grid-area:photo;justify-self:end;}
+.rc-theme-double-frame-formal .rc-school-info{grid-area:info;}
+.rc-theme-double-frame-formal .rc-school-info h1{letter-spacing:.1em;}
+.rc-theme-double-frame-formal .rc-title{display:grid;grid-template-columns:1fr auto 1fr;column-gap:.9em;align-items:center;}
+.rc-theme-double-frame-formal .rc-title::before,.rc-theme-double-frame-formal .rc-title::after{content:"";grid-row:1;height:5px;border-top:1px solid var(--rc-primary);border-bottom:1px solid var(--rc-primary);}
+.rc-theme-double-frame-formal .rc-title::before{grid-column:1;}
+.rc-theme-double-frame-formal .rc-title::after{grid-column:3;}
+.rc-theme-double-frame-formal .rc-title-main{grid-column:2;grid-row:1;letter-spacing:.2em;}
+.rc-theme-double-frame-formal .rc-title-sub{grid-column:2;grid-row:2;text-align:center;}
+.rc-theme-double-frame-formal .rc-subject-table th{border-bottom:2px solid var(--rc-accent);}
+.rc-theme-double-frame-formal .rc-tile{border-color:var(--rc-primary);border-radius:.15em;}
+.rc-theme-double-frame-formal .rc-tile-hero strong{color:#fff;}
+.rc-theme-double-frame-formal .rc-info-grid{border-color:var(--rc-primary);}
+.rc-theme-double-frame-formal .rc-comment{border-radius:.15em;border-top:2px solid var(--rc-primary);}
+.rc-theme-double-frame-formal .rc-photo,.rc-theme-double-frame-formal .rc-photo-fallback{border:2px solid var(--rc-primary);outline:1px solid var(--rc-accent);outline-offset:1.5px;}
+/* compact mode falls back to the standard letterhead row for the crest-centred theme */
+.rc-theme-double-frame-formal[data-compact] .rc-header{grid-template-columns:auto 1fr auto;grid-template-areas:none;}
+.rc-theme-double-frame-formal[data-compact] .rc-logo-wrap,.rc-theme-double-frame-formal[data-compact] .rc-photo-wrap,.rc-theme-double-frame-formal[data-compact] .rc-school-info{grid-area:auto;}
+.rc-theme-double-frame-formal[data-compact] .rc-header::after{grid-column:1/-1;}
+.rc-theme-double-frame-formal[data-compact] .rc-header{padding-bottom:.4em;}
 
 /* Marks-submitted progress bar (Form Teacher class review) */
 .progress-bar{height:8px;border-radius:6px;background:#E6E9EE;overflow:hidden;min-width:90px;margin-bottom:4px;}
