@@ -412,6 +412,13 @@ function printReportsNow(studentIds, classArmId){
   /* No separator <div>s between cards: the stylesheet starts each card after
      the first on a new page, so there is never a blank page before or after. */
   var html = studentIds.map(function(id){ return generateReportCardHtml(id, classArmId, state.currentSessionId, state.currentTermId, templateId); }).join("");
+  /* heads-up (never a block): AI-written comments the user has not approved yet */
+  var unapproved = studentIds.filter(function(id){
+    var c = state.studentComments[[id, state.currentSessionId, state.currentTermId].join("::")] || {};
+    var gen = function(src){ return src === "ai" || src === "template"; };
+    return (c.formTeacherComment && gen(c.ftSource) && !c.ftApproved) || (c.principalComment && gen(c.prSource) && !c.prApproved);
+  }).length;
+  if (unapproved) toast(unapproved + " report(s) include AI-written comments that are not approved yet.", "warn");
   var printArea = el("print-area");
   printArea.innerHTML = html;
   fitInPrintArea(printArea);

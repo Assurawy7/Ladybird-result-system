@@ -57,6 +57,8 @@ Neon PostgreSQL (school_state, media, sessions tables)
 3. **Set environment variables** (Netlify → Site settings → Environment
    variables): `DATABASE_URL` (the Neon connection string) and
    `SESSION_SECRET` (any long random string). See `.env.example`.
+   *(Optional: add `GROQ_API_KEY` to switch on free AI report comments - see
+   `docs/ai-comments.md`.)*
 4. **Deploy.** Netlify runs `npm run build` (regenerates `app.js` from
    `source/`) and publishes the site + functions in one step.
 5. **Initialize the database** — run once, from your own machine, pointed at

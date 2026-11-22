@@ -67,7 +67,7 @@ function renderFormReviewView(){
       '<td class="sticky-col">'+photoHtml+' '+escapeHtml(stu.name)+'</td>'+
       '<td>'+(row.overall.average!==null?row.overall.average:'<span class="muted">—</span>')+'</td>'+
       '<td>'+(row.position||'—')+'</td>'+
-      '<td><button class="btn btn-sm btn-ghost" onclick="openCommentEditor(\''+stu.id+'\')">'+(c.formTeacherComment?'Edit Comment':'Add Comment')+'</button></td>'+
+      '<td><button class="btn btn-sm btn-ghost" onclick="openCommentEditor(\''+stu.id+'\')">'+(c.formTeacherComment?'Edit Comment':'Add Comment')+'</button> '+aiStatusChip(c)+'</td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="openFeesEditor(\''+stu.id+'\')">'+(c.nextFees||c.examFee?'Edit Fees':'Set Fees')+'</button></td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="openDomainEditor(\''+stu.id+'\')">Skills/Behaviour</button></td>'+
       '<td><button class="btn btn-sm btn-ghost" onclick="viewStudentProfile(\''+stu.id+'\')">View</button></td>'+
@@ -89,7 +89,8 @@ function renderFormReviewView(){
     '<div class="table-wrap"><table class="data-table"><thead><tr><th>Subject</th><th>Teacher</th><th>Entered</th><th>Marks submitted</th><th>Status</th><th></th></tr></thead><tbody>'+subjectRows+'</tbody></table></div>'+
   '</div>'+
   '<div class="card">'+
-    '<div class="card-header"><h3>Students — Comments, Fees &amp; Ratings</h3></div>'+
+    '<div class="card-header"><h3>Students — Comments, Fees &amp; Ratings</h3>'+
+      (ov.students.length && aiCanFormComment(classArmId) ? '<button class="btn btn-sm btn-primary" onclick="openAiCommentsDialog(\''+classArmId+'\')">Generate AI Comments for Entire Class</button>' : '')+'</div>'+
     '<div class="table-wrap"><table class="data-table"><thead><tr><th class="sticky-col">Student</th><th>Average</th><th>Position</th><th>Comment</th><th>Fees</th><th>Skills/Behaviour</th><th></th></tr></thead><tbody>'+studentRows+'</tbody></table></div>'+
     '<div class="card-footer">'+
       (canApproveClass ? '<button class="btn btn-primary" onclick="approveClass(\''+classArmId+'\')">Approve Class &amp; Send to Admin/Principal</button>' :
@@ -157,9 +158,15 @@ function openCommentEditor(studentId){
 function saveComment(studentId){
   var key = [studentId, state.currentSessionId, state.currentTermId].join("::");
   var existing = state.studentComments[key] || {};
-  existing.formTeacherComment = el("ft-comment-text").value.trim();
+  var newFt = el("ft-comment-text").value.trim();
+  if (newFt !== (existing.formTeacherComment||"")){ existing.ftSource = newFt ? "manual" : ""; existing.ftApproved = false; }
+  existing.formTeacherComment = newFt;
   var pc = el("principal-comment-text");
-  if (pc) existing.principalComment = pc.value.trim();
+  if (pc){
+    var newPr = pc.value.trim();
+    if (newPr !== (existing.principalComment||"")){ existing.prSource = newPr ? "manual" : ""; existing.prApproved = false; }
+    existing.principalComment = newPr;
+  }
   state.studentComments[key] = existing;
   addAudit(state, "Comment updated", byId(state.students,studentId).name);
   toast("Comment saved.");
